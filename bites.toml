@@ -1,0 +1,54 @@
+# bites.toml - default configuration for the bites_tool package (read with tomllib).
+#
+# Background: the GitHub connector cuts any single tool result at 28,000 characters
+# (measured), after adding an 82-character wrapper line in front of the file content.
+# A part file (header + body + footer) was read whole with a 27,000-character body, with
+# roughly 700 characters of headroom left. Change these numbers only after re-measuring.
+#
+# A branch can override this file by committing its own bites.toml in its root; the
+# action prefers that copy when it exists; otherwise the copy shipped with the action (this
+# file, at the version the project's workflow names) is used.
+
+# Files with this many characters or fewer are NOT chunked (read them directly).
+# Longer files are cut into parts whose bodies are at most this long.
+# Units are Unicode code points, not bytes.
+max_chars     = 27000
+
+# The measured per-result cap. `verify` fails the build if any part file plus the
+# wrapper would exceed it.
+read_cap      = 28000
+
+# Characters the connector adds before the content (counted against read_cap).
+wrapper_chars = 82
+
+# manifest.json and last_build.json must also be readable in one call. They default to
+# max_chars; uncomment to allow a different limit. The build fails if the manifest is
+# longer, rather than letting it be truncated silently.
+# manifest_max_chars = 27000
+
+# Which tracked files are eligible. `*` stays within a directory, `**/` spans any number
+# of directories (including none), so "**/*.md" also matches README.md in the root.
+include = [
+  "**/*.md",
+  "**/*.txt",
+  "**/*.py",
+  "**/*.conf",
+  "**/*.csv",
+  "**/*.sh",
+  "**/*.json",
+  "**/*.yml",
+  "**/*.yaml",
+]
+
+# Removed from the include set. Patch files and git internals must never be mirrored,
+# and a per-branch bites.toml is configuration, not content.
+exclude = [
+  ".git/**",
+  ".github/**",
+  ".bites-patches/**",
+  "**/node_modules/**",
+  "bites.toml",
+]
+
+# Never chunked regardless of the lists above (hard-coded in bites_tool/core.py so a
+# config edit cannot expose secrets):  .env*   *.pem   *.key   id_rsa*

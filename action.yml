@@ -1,0 +1,164 @@
+# action.yml - composite action: mirror large text files as exact parts and apply patch files
+#
+# Used from a project as ONE step of a job (see templates/bites.yml):
+#     - uses: imdebating/bites@v1
+#       with:
+#         full: false          # optional; 'true' rebuilds every large file
+#
+# The action and the Python package it runs (bites_tool/) are fetched together at the
+# ref the caller names, so they can never drift apart: the package is found through
+# github.action_path. Nothing is copied into the project.
+#
+# Requirements on the calling job:
+#   * a Linux runner with git and bash (GitHub-hosted ubuntu images have both); Python is
+#     set up by this action
+#   * `permissions: contents: write` (to push to <branch> and to bites/<branch>)
+#
+# What one run does (a single run on purpose: pushes made with GITHUB_TOKEN do not start
+# new workflow runs, so the patch commit cannot trigger a second run that does the chunking):
+#   1. gate        - stop quietly unless branch bites/<branch> already exists (opt-in)
+#   2. apply       - apply .bites-patches/*.patch to the source tree, all or nothing
+#   3. commit      - commit the applied patches (and patch-file deletions) to <branch>
+#   4. build       - regenerate parts for new/changed large files into the bites checkout
+#   5. verify      - reassemble every part and compare with the source files
+#   6. on failure  - discard the half-built bites tree, record the error in last_build.json
+#   7. publish     - commit and push whatever changed on bites/<branch>
+#
+# Settings shared by the steps are passed through environment variables written to
+# GITHUB_ENV by step 1: BRANCH, FULL, PYTHONPATH (the package) and CFG (the configuration:
+# the project's own bites.toml if it has one, otherwise the default shipped here).
+#
+# Actions used here are pinned to full commit SHAs (version in the trailing comment);
+# Dependabot updates them in THIS repository. Releasing a change: see README.md.
+name: bites
+description: Mirror large text files as exact, size-capped parts on bites/<branch>, and apply patch files.
+author: imdebating
+
+inputs:
+  full:
+    description: "'true' rebuilds and re-splits every large file instead of only changed ones"
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    # Full history so `git pull --rebase` works if the branch moved during the run.
+    - name: Check out source branch
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+
+    # The opt-in switch, plus the settings every later step shares. Branch names may
+    # contain shell metacharacters, so they travel in environment variables and are
+    # always quoted, never pasted into commands.
+    - name: Opt-in gate and settings
+      id: gate
+      shell: bash
+      env:
+        BRANCH_NAME: ${{ github.ref_name }}
+        FULL_INPUT: ${{ inputs.full }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        if git ls-remote --exit-code --heads origin "refs/heads/bites/$BRANCH_NAME" >/dev/null 2>&1; then
+          echo "go=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "go=false" >> "$GITHUB_OUTPUT"
+          echo "No bites/$BRANCH_NAME branch; nothing to do."
+          exit 0
+        fi
+        {
+          echo "BRANCH=$BRANCH_NAME"
+          echo "FULL=$FULL_INPUT"
+          echo "PYTHONPATH=$ACTION_PATH"
+          # A bites.toml in the project's root overrides the action's default.
+          if [ -f bites.toml ]; then echo "CFG=bites.toml"; else echo "CFG=$ACTION_PATH/bites.toml"; fi
+        } >> "$GITHUB_ENV"
+
+    # Second working tree, in ./out, holding the bites branch that will be updated.
+    - name: Check out bites branch
+      if: steps.gate.outputs.go == 'true'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: bites/${{ github.ref_name }}
+        path: out
+
+    - name: Set up Python
+      if: steps.gate.outputs.go == 'true'
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: '3.12'
+
+    # Status and report files live in RUNNER_TEMP so they never show up as changes
+    # in any git working tree.
+    - name: Apply pending patches
+      if: steps.gate.outputs.go == 'true'
+      shell: bash
+      run: |
+        python -m bites_tool apply --src . --patches .bites-patches \
+          --report "$RUNNER_TEMP/patch_report.json" --status "$RUNNER_TEMP/status.json"
+
+    # If patches were applied, record that as a normal commit on the source branch so
+    # the build below (and history) see exactly the patched files. The pathspec keeps
+    # the nested checkout out of this commit.
+    - name: Commit applied patches to the source branch
+      if: steps.gate.outputs.go == 'true'
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add -A -- . ':!out'
+        if ! git diff --cached --quiet; then
+          git commit -m "bites: apply patches"
+          git pull --rebase origin "$BRANCH"
+          git push origin "HEAD:refs/heads/$BRANCH"
+        fi
+
+    # Incremental by default (only files whose git blob changed are re-split); the
+    # `full` input forces everything. The recorded source commit is the current HEAD,
+    # which includes the patch commit when there was one.
+    - name: Build parts
+      if: steps.gate.outputs.go == 'true'
+      shell: bash
+      run: |
+        FLAG=""
+        if [ "$FULL" = "true" ]; then FLAG="--full"; fi
+        python -m bites_tool build --config "$CFG" --src . --out out \
+          --source-branch "$BRANCH" --source-commit "$(git rev-parse HEAD)" \
+          --patch-report "$RUNNER_TEMP/patch_report.json" \
+          --status "$RUNNER_TEMP/status.json" $FLAG
+
+    # Fails the run (so nothing is published) if any part does not reassemble to its
+    # source, any part is over the read cap, or the tree has missing/extra files.
+    - name: Verify round trip
+      if: steps.gate.outputs.go == 'true'
+      shell: bash
+      run: |
+        python -m bites_tool verify --config "$CFG" --src . --out out \
+          --status "$RUNNER_TEMP/status.json"
+
+    # After any failure: throw away uncommitted changes in the bites checkout so the
+    # last good parts stay intact, then write only last_build.json (status "error").
+    - name: Record failure (leave parts untouched, publish only last_build.json)
+      if: failure() && steps.gate.outputs.go == 'true'
+      shell: bash
+      run: |
+        git -C out reset --hard -q
+        git -C out clean -fdq
+        python -m bites_tool report-failure --status "$RUNNER_TEMP/status.json" --out out \
+          --source-branch "$BRANCH" --source-commit "$(git rev-parse HEAD)"
+
+    # Runs after success or failure (not cancellation). Commits only if something
+    # changed; the manifest records the source commit, so most runs produce a commit.
+    - name: Publish to bites branch
+      if: ${{ (success() || failure()) && steps.gate.outputs.go == 'true' }}
+      shell: bash
+      working-directory: out
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add -A
+        if ! git diff --cached --quiet; then
+          git commit -m "bites: ${GITHUB_SHA::7}"
+          git push origin "HEAD:refs/heads/bites/$BRANCH"
+        fi

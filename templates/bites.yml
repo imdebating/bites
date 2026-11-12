@@ -1,0 +1,46 @@
+# .github/workflows/bites.yml
+#
+# This is the TEMPLATE. scripts/bootstrap.sh copies it into a project, replacing
+# __ACTION__ (the repository that holds the action, default imdebating/bites) and
+# __REF__ (the version, default v1). Until those are replaced it is not a valid workflow.
+#
+# Thin caller. All of the work is done by the shared action; this file only decides WHEN
+# to run and WHAT the job may do. Do not edit the steps. To change the version, change the
+# ref after @ (a moving major tag such as v1, an exact tag, or a full commit SHA), or
+# re-run the bootstrap script with --ref.
+#
+# Opt-in per branch: nothing happens unless a branch named bites/<branch> exists.
+# A push-triggered run uses the copy of this file in the pushed commit, so a branch must
+# contain this file (create branches after it is on the default branch, or merge the
+# default branch into older ones).
+name: bites
+
+on:
+  # Every branch except the output branches themselves (prevents loops).
+  push:
+    branches-ignore: ['bites/**']
+  # Manual run from the Actions tab, on whichever branch is selected.
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Rebuild and re-split every large file instead of only changed ones
+        type: boolean
+        default: false
+
+# One run at a time per branch, queued rather than cancelled, so a rebuild is never
+# interrupted half way through writing parts.
+concurrency:
+  group: bites-${{ github.ref }}
+  cancel-in-progress: false
+
+# Push to <branch> (applied patches) and to bites/<branch> (parts). Nothing else.
+permissions:
+  contents: write
+
+jobs:
+  bites:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: __ACTION__@__REF__
+        with:
+          full: ${{ inputs.full || false }}

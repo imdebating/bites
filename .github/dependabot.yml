@@ -1,0 +1,9 @@
+# Keeps the pinned action SHAs current. For the github-actions ecosystem, directory "/"
+# covers the workflows in .github/workflows and the action.yml in the repository root.
+# Projects that use this action through a moving tag (@v1) need no Dependabot entry for it.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
