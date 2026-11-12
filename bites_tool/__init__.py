@@ -28,4 +28,4 @@ Standard library only. Requires Python 3.11+ (tomllib) and `git` on PATH.
 
 # Keep in step with the release tag: tag v1.2.0 means __version__ = "1.2.0" (the moving
 # tag v1 follows the latest 1.x release). See the README, "Releasing a change".
-__version__ = "1.0.0"
+__version__ = "1.1.0"

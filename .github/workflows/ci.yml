@@ -1,4 +1,4 @@
-# Runs the tests (including the bootstrap script, against local git repositories) on every
+# Runs the tests (including the shell scripts, against local git repositories) on every
 # push to main and on pull requests. Actions are pinned to full commit SHAs (version in the
 # trailing comment); Dependabot updates them.
 name: ci
@@ -19,6 +19,6 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
-      - run: bash -n scripts/bootstrap.sh
+      - run: for f in scripts/*.sh; do bash -n "$f"; done
       - run: python -m pip install pytest
       - run: python -m pytest tests -q

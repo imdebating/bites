@@ -4,21 +4,29 @@
 # __ACTION__ (the repository that holds the action, default imdebating/bites) and
 # __REF__ (the version, default v1). Until those are replaced it is not a valid workflow.
 #
-# Thin caller. All of the work is done by the shared action; this file only decides WHEN
-# to run and WHAT the job may do. Do not edit the steps. To change the version, change the
+# Thin caller. All of the work is done by the shared actions; this file only decides WHEN
+# to run and WHAT the jobs may do. Do not edit the steps. To change the version, change the
 # ref after @ (a moving major tag such as v1, an exact tag, or a full commit SHA), or
 # re-run the bootstrap script with --ref.
 #
-# Opt-in per branch: nothing happens unless a branch named bites/<branch> exists.
+# Two jobs:
+#   bites    on every push (and by hand): mirror large files and apply patch files.
+#   cleanup  when a branch is deleted: delete that branch's bites/<branch> mirror.
+#
+# Opt-in per branch: nothing is mirrored unless a branch named bites/<branch> exists.
 # A push-triggered run uses the copy of this file in the pushed commit, so a branch must
 # contain this file (create branches after it is on the default branch, or merge the
-# default branch into older ones).
+# default branch into older ones). A delete-triggered run always uses the copy on the
+# DEFAULT branch, so the cleanup job needs the file on the default branch only.
 name: bites
 
 on:
   # Every branch except the output branches themselves (prevents loops).
   push:
     branches-ignore: ['bites/**']
+  # Fires when a branch or tag is deleted (including by "Automatically delete head
+  # branches" after a pull request is merged).
+  delete:
   # Manual run from the Actions tab, on whichever branch is selected.
   workflow_dispatch:
     inputs:
@@ -27,20 +35,32 @@ on:
         type: boolean
         default: false
 
-# One run at a time per branch, queued rather than cancelled, so a rebuild is never
-# interrupted half way through writing parts.
-concurrency:
-  group: bites-${{ github.ref }}
-  cancel-in-progress: false
-
-# Push to <branch> (applied patches) and to bites/<branch> (parts). Nothing else.
+# Push to <branch> (applied patches), to bites/<branch> (parts) and delete bites/<branch>
+# (cleanup). Nothing else.
 permissions:
   contents: write
 
 jobs:
   bites:
+    if: github.event_name != 'delete'
     runs-on: ubuntu-24.04
+    # One run at a time per branch, queued rather than cancelled, so a rebuild is never
+    # interrupted half way through writing parts.
+    concurrency:
+      group: bites-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: __ACTION__@__REF__
         with:
           full: ${{ inputs.full || false }}
+
+  cleanup:
+    # Branch deletions only, and never for the output branches themselves. (A delete
+    # event's github.ref is the default branch, so the group below uses the deleted name.)
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'bites/')
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: bites-cleanup-${{ github.event.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: __ACTION__/cleanup@__REF__

@@ -49,6 +49,9 @@ cannot be read whole. Every .md/.txt/.py/.conf/.csv/.sh/.json/.yml/.yaml file lo
 8. If F is not in `files`: read it directly. If the result ends with `...[truncated]`,
    stop: the file is probably excluded by `bites.toml`, not UTF-8 (see `skipped` in the
    manifest), or the manifest is stale.
+9. If `bites/<BRANCH>` does not exist, the branch is not mirrored (or its mirror was deleted
+   together with the branch, or the branch was restored afterwards). Read files directly, and if a
+   result ends with `...[truncated]`, stop and tell the user the branch needs its mirror created.
 
 `.env`, `*.pem`, `*.key` and `id_rsa*` are never mirrored.
 

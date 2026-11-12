@@ -1,0 +1,49 @@
+# cleanup/action.yml - composite action: delete bites/<branch> after <branch> is deleted
+#
+# Used from the caller workflow's `cleanup` job (see templates/bites.yml):
+#     - uses: imdebating/bites/cleanup@v1
+#       with:
+#         dry-run: false       # optional; 'true' only reports what it would delete
+#
+# Runs on the `delete` event. All the decisions are in scripts/cleanup.sh (which has its own
+# tests): it deletes bites/<branch> only when the event is a branch deletion, the branch is
+# not the default branch and not itself a bites/* branch, the source branch has not been
+# re-created in the meantime, and the mirror exists.
+#
+# The calling job must grant `permissions: contents: write`.
+name: bites cleanup
+description: Delete the bites/<branch> mirror branch when its source branch is deleted.
+author: imdebating
+
+inputs:
+  dry-run:
+    description: "'true' reports what would be deleted without deleting it"
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    # A delete event runs on the default branch. The checkout is only there to give git a
+    # repository, with credentials, to push the deletion from.
+    - name: Check out repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 1
+
+    # The script is found next to this directory; the second path covers a runner that
+    # reports the repository root as the action path.
+    - name: Delete the mirror branch
+      shell: bash
+      env:
+        BRANCH: ${{ github.event.ref }}
+        REF_TYPE: ${{ github.event.ref_type }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        for dir in "$ACTION_PATH/../scripts" "$ACTION_PATH/scripts"; do
+          if [ -f "$dir/cleanup.sh" ]; then exec bash "$dir/cleanup.sh"; fi
+        done
+        echo "cleanup.sh not found relative to $ACTION_PATH" >&2
+        exit 1
