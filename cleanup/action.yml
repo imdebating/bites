@@ -31,8 +31,8 @@ runs:
       with:
         fetch-depth: 1
 
-    # The script is found next to this directory; the second path covers a runner that
-    # reports the repository root as the action path.
+    # github.action_path is the directory that holds this action.yml, that is cleanup/ in
+    # the action repository, so the script is one level up in scripts/.
     - name: Delete the mirror branch
       shell: bash
       env:
@@ -42,8 +42,9 @@ runs:
         DRY_RUN: ${{ inputs.dry-run }}
         ACTION_PATH: ${{ github.action_path }}
       run: |
-        for dir in "$ACTION_PATH/../scripts" "$ACTION_PATH/scripts"; do
-          if [ -f "$dir/cleanup.sh" ]; then exec bash "$dir/cleanup.sh"; fi
-        done
-        echo "cleanup.sh not found relative to $ACTION_PATH" >&2
-        exit 1
+        script="$ACTION_PATH/../scripts/cleanup.sh"
+        if [ ! -f "$script" ]; then
+          echo "cleanup.sh not found at $script (action path: $ACTION_PATH)" >&2
+          exit 1
+        fi
+        exec bash "$script"

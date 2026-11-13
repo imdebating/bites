@@ -300,6 +300,7 @@ A mirror holds only derived data, so deleting one is cheap: recreate the branch 
 | `scripts/` | `bootstrap.sh` (install), `cleanup.sh` (logic behind the cleanup action), `prune.sh` (sweep orphaned mirrors) |
 | `BITES_INSTRUCTIONS.md` | what to paste into a chat so the assistant reads and edits correctly |
 | `tests/` | test suite; the shell scripts run against local git repositories |
+| `LICENSE` | the MIT license |
 
 Module docstrings describe the part format, manifest layout, patch grammar and exit codes; start with
 `bites_tool/__init__.py`. To run the tests locally (Python 3.11+): create a virtual environment, `python -m pip install
@@ -307,8 +308,12 @@ pytest`, then `python -m pytest tests -q`.
 
 ## Versions and releases
 
-Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.3.0`, or a full commit SHA. A breaking
+Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.3.1`, or a full commit SHA. A breaking
 change gets a new major tag. Maintainers: change the code through a pull request, bump `__version__` in
 `bites_tool/__init__.py`, tag the release (`vX.Y.Z`), and move the major tag (`git tag -f v1 && git push -f origin v1`).
 If a release changes `templates/bites.yml`, projects re-run `scripts/bootstrap.sh` to update their workflow.
 Update `BITES_INSTRUCTIONS.md` in the same pull request as any change to what the assistant sees.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
