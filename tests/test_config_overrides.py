@@ -81,6 +81,9 @@ def test_build_reads_the_environment_and_the_set_option(tmp_path, monkeypatch):
     cfg.write_text("", encoding="utf-8")
     base = ["build", "--config", str(cfg), "--src", str(src), "--source-branch", "t", "--source-commit", "c"]
 
+    # The manifest limit defaults to max_chars, which is far too small for tiny parts, so
+    # the test gives it room.
+    monkeypatch.setenv("BITES_MANIFEST_MAX_CHARS", "100000")
     monkeypatch.setenv("BITES_MAX_CHARS", "10")
     out1 = tmp_path / "out1"
     assert cli.main([*base, "--out", str(out1)]) == 0
