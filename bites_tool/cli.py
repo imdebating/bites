@@ -7,6 +7,10 @@ COMMANDS
     reassemble       write one original file, rebuilt from its parts, to stdout
     report-failure   convert a failure status file into <out>/last_build.json
 
+SETTINGS
+    build and verify read the configuration file given by --config; `--set KEY=VALUE`
+    (repeatable) and BITES_<KEY> environment variables override it. See bites_tool/core.py.
+
 EXIT CODES
     0 success; 1 any error (message on stderr; if --status was given, a JSON error
     record is written there so the workflow can publish it).
@@ -31,6 +35,14 @@ def make_parser():
         """Add the option every command shares: where to record a JSON error."""
         p.add_argument("--status", help="on failure, write a JSON error record to this path")
 
+    def settings(p):
+        """Add the option that overrides configuration settings."""
+        p.add_argument(
+            "--set", action="append", default=[], metavar="KEY=VALUE",
+            help="override a setting (max_chars, read_cap, include, exclude); repeat for more, "
+                 "repeated include/exclude options add to one list",
+        )
+
     p = sub.add_parser("apply", help="apply pending patch files")
     p.add_argument("--src", default=".", help="source repository root")
     p.add_argument("--patches", default=".bites-patches", help="patch directory, relative to --src")
@@ -46,6 +58,7 @@ def make_parser():
     p.add_argument("--source-commit", default="", help="recorded in the manifest")
     p.add_argument("--patch-report", help="report written by `apply`, copied into last_build.json")
     p.add_argument("--full", action="store_true", help="rebuild every large file")
+    settings(p)
     common(p)
     p.set_defaults(func=cmd_build)
 
@@ -53,6 +66,7 @@ def make_parser():
     p.add_argument("--config", default="bites.toml")
     p.add_argument("--src", default=".")
     p.add_argument("--out", required=True)
+    settings(p)
     common(p)
     p.set_defaults(func=cmd_verify)
 

@@ -36,14 +36,15 @@ def test_partial_config_overrides_only_what_it_names(tmp_path):
     assert core.select_files(cfg, ["a.md", "b.png"]) == ["a.md"]
 
 
-def test_include_replaces_the_default_list_but_exclude_still_applies(tmp_path):
+def test_include_replaces_the_default_list_but_always_excluded_paths_stay_out(tmp_path):
     cfg = load(tmp_path, 'include = ["**/*.rst"]\n')
     assert core.select_files(cfg, ["a.md", "b.rst", ".github/c.rst"]) == ["b.rst"]
 
 
-def test_exclude_replaces_the_default_list(tmp_path):
+def test_exclude_replaces_only_the_default_list(tmp_path):
     cfg = load(tmp_path, 'exclude = ["docs/**"]\n')
-    assert core.select_files(cfg, ["a.md", "docs/b.md", ".github/c.yml"]) == ["a.md", ".github/c.yml"]
+    files = ["a.md", "docs/b.md", "node_modules/x/f.md", ".github/c.yml"]
+    assert core.select_files(cfg, files) == ["a.md", "node_modules/x/f.md"]
 
 
 def test_empty_include_is_an_error(tmp_path):

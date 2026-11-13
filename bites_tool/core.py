@@ -7,8 +7,9 @@ UNITS
 
 SOURCE FILE SELECTION
     Files come from `git ls-files` (tracked files only), filtered by the `include` and
-    `exclude` glob lists in the configuration. These names are NEVER processed, even if
-    a glob matches them: `.env*`, `*.pem`, `*.key`, `id_rsa*` (see DENY_BASENAMES).
+    `exclude` glob lists in the configuration. These are NEVER processed, even if a glob
+    matches them: `.env*`, `*.pem`, `*.key`, `id_rsa*` (see DENY_BASENAMES) and the paths
+    in ALWAYS_EXCLUDE (git internals, workflows, patch files, bites.toml itself).
     Glob syntax: `*` = any characters except `/`, `?` = one character except `/`,
     `**/` = zero or more directories, `**` = anything including `/`. So `**/*.md`
     matches both `README.md` and `a/b/c.md`.
@@ -43,17 +44,25 @@ OUTPUT LAYOUT (the tree of the `bites/<branch>` branch)
                                   extension) so same-named files in different
                                   directories, or `x.md` and `x.txt`, never collide.
 
-CONFIGURATION (bites.toml, read with the standard-library tomllib)
-    Every key is optional: a file that names only some keys gets the defaults for the
-    rest, so a project's bites.toml can be one line long.
+CONFIGURATION
+    Settings come from three places; a later one wins over an earlier one:
+      1. the defaults built into this module,
+      2. a bites.toml (read with the standard-library tomllib): the project's own, if the
+         branch has one, otherwise the one shipped with the action,
+      3. overrides: `--set KEY=VALUE` options and BITES_<KEY> environment variables, for
+         example BITES_MAX_CHARS. The action sets the variables from its inputs. `--set`
+         wins over the environment; repeated `--set include=...` / `exclude=...` options
+         accumulate into one list.
+    Every key is optional, so a project's bites.toml can be one line long.
     max_chars            no-chunk threshold and maximum part body        (default 27000)
     read_cap             measured per-result cap                         (default 28000)
-    wrapper_chars        connector wrapper line counted against the cap  (default 82)
-    manifest_max_chars   limit for manifest.json / last_build.json       (default max_chars)
     include, exclude     glob lists (defaults: DEFAULT_INCLUDE and DEFAULT_EXCLUDE
                          below). A list that is given replaces the default list; an
                          empty include list is an error. The shipped bites.toml spells
                          out the same values, and a test keeps the two in step.
+    Advanced settings that are not promoted in the documentation:
+    wrapper_chars        connector wrapper line counted against the cap  (default 82)
+    manifest_max_chars   limit for manifest.json / last_build.json       (default max_chars)
 """
 from __future__ import annotations
 
@@ -76,6 +85,10 @@ SCHEMA = 1
 # an include glob matches them. They are the usual homes of secrets.
 DENY_BASENAMES = (".env*", "*.pem", "*.key", "id_rsa*")
 
+# Paths that are never mirrored and cannot be added back by any setting: git internals,
+# workflow files, patch files (mirroring them would only add noise) and the configuration.
+ALWAYS_EXCLUDE = (".git/**", ".github/**", ".bites-patches/**", "bites.toml")
+
 # Which tracked files are eligible when a configuration does not say. Keep in step with
 # the `include` / `exclude` lists in the shipped bites.toml (tests/test_config_defaults.py
 # fails if they differ) and with the README.
@@ -86,13 +99,16 @@ DEFAULT_INCLUDE = [
     "**/*.json", "**/*.yml", "**/*.yaml", "**/*.toml", "**/*.ini", "**/*.cfg", "**/*.conf",
     "**/*.csv",
 ]
-DEFAULT_EXCLUDE = [
-    ".git/**",
-    ".github/**",
-    ".bites-patches/**",
-    "**/node_modules/**",
-    "bites.toml",
-]
+DEFAULT_EXCLUDE = ["**/node_modules/**"]
+
+# Setting names, and which of them hold whole numbers and which hold glob lists.
+INT_KEYS = ("max_chars", "read_cap", "wrapper_chars", "manifest_max_chars")
+LIST_KEYS = ("include", "exclude")
+SETTING_KEYS = INT_KEYS + LIST_KEYS
+
+# Characters a part's header and footer need on top of its body, as a rough allowance for
+# the warning in config_warnings (the exact check is `verify`, which sees the real sizes).
+PART_OVERHEAD = 400
 
 
 class BitesError(Exception):
@@ -162,20 +178,69 @@ def glob_to_re(pat: str) -> re.Pattern:
     return re.compile("^" + "".join(out) + "$")
 
 
-def load_config(path) -> dict:
-    """Read and validate the configuration file.
+# ------------------------------------------------------------ configuration
+def parse_setting(key: str, value: str):
+    """Convert the text of one setting (from `--set` or an environment variable).
+
+    Number settings become `int`. List settings are split into lines; blank lines and
+    lines starting with `#` are dropped and the rest are stripped. Raises BitesError for
+    a number that is not a whole number.
+    """
+    if key in LIST_KEYS:
+        lines = [ln.strip() for ln in value.splitlines()]
+        return [ln for ln in lines if ln and not ln.startswith("#")]
+    try:
+        return int(value.strip())
+    except ValueError:
+        raise BitesError(f"{key} must be a whole number, not {value.strip()!r}")
+
+
+def settings_from_env(env=None) -> dict:
+    """Return the overrides found in BITES_<KEY> environment variables (blank ones ignored)."""
+    env = os.environ if env is None else env
+    found = {}
+    for key in SETTING_KEYS:
+        text = env.get("BITES_" + key.upper(), "")
+        if text.strip():
+            found[key] = parse_setting(key, text)
+    return found
+
+
+def collect_overrides(items=(), env=None) -> dict:
+    """Combine environment overrides with `--set KEY=VALUE` items; `--set` wins.
+
+    Repeating `--set include=...` (or `exclude=...`) adds to that list; the first one
+    replaces any list that came from the environment. Raises BitesError for an item that
+    is not KEY=VALUE or names an unknown setting.
+    """
+    out = settings_from_env(env)
+    seen = set()
+    for item in items:
+        key, sep, text = item.partition("=")
+        key = key.strip()
+        if not sep or key not in SETTING_KEYS:
+            raise BitesError(f"--set expects KEY=VALUE, with KEY one of {', '.join(SETTING_KEYS)}: {item!r}")
+        value = parse_setting(key, text)
+        out[key] = out[key] + value if key in LIST_KEYS and key in seen else value
+        seen.add(key)
+    return out
+
+
+def load_config(path, overrides=None) -> dict:
+    """Read and validate the configuration file, then apply `overrides` on top of it.
 
     Every key is optional; missing keys take the defaults described in the module
-    docstring. Returns a dict with the integer settings (`max_chars`, `read_cap`,
-    `wrapper_chars`, `manifest_max_chars`) and the compiled regex lists
-    `include_re` / `exclude_re`. Raises BitesError for an unreadable file or an
-    unusable value.
+    docstring. `overrides` is a dict of already-parsed settings (see `collect_overrides`).
+    Returns a dict with the integer settings (`max_chars`, `read_cap`, `wrapper_chars`,
+    `manifest_max_chars`) and the compiled regex lists `include_re` / `exclude_re`.
+    Raises BitesError for an unreadable file or an unusable value.
     """
     try:
         with open(path, "rb") as fh:
             raw = tomllib.load(fh)
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise BitesError(f"cannot read config {path}: {exc}")
+    raw.update(overrides or {})
     cfg = {
         "max_chars": int(raw.get("max_chars", 27000)),
         "read_cap": int(raw.get("read_cap", 28000)),
@@ -185,12 +250,31 @@ def load_config(path) -> dict:
     cfg["manifest_max_chars"] = int(raw.get("manifest_max_chars", cfg["max_chars"]))
     if cfg["max_chars"] < 1:
         raise BitesError("max_chars must be positive")
+    if cfg["read_cap"] < 1:
+        raise BitesError("read_cap must be positive")
     include = list(raw.get("include", DEFAULT_INCLUDE))
     if not include:
         raise BitesError("include must not be empty (leave it out to use the default list)")
+    exclude = list(ALWAYS_EXCLUDE) + list(raw.get("exclude", DEFAULT_EXCLUDE))
     cfg["include_re"] = [glob_to_re(p) for p in include]
-    cfg["exclude_re"] = [glob_to_re(p) for p in raw.get("exclude", DEFAULT_EXCLUDE)]
+    cfg["exclude_re"] = [glob_to_re(p) for p in exclude]
     return cfg
+
+
+def config_warnings(cfg: dict) -> list[str]:
+    """Return human-readable warnings about a configuration that is probably unusable.
+
+    A part is its body plus a header and footer, and the connector adds its wrapper line;
+    if `max_chars` leaves no room for those under `read_cap`, `verify` will reject the
+    parts. This only warns, because `verify` is the exact check.
+    """
+    room = cfg["read_cap"] - cfg["wrapper_chars"] - PART_OVERHEAD
+    if cfg["max_chars"] > room:
+        return [
+            f"max_chars {cfg['max_chars']} leaves too little room under read_cap {cfg['read_cap']} "
+            f"for the part header and footer; use at most {room}, or verification will fail"
+        ]
+    return []
 
 
 def list_source_files(src: Path) -> list[str]:

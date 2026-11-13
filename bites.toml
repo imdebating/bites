@@ -5,12 +5,12 @@
 # A part file (header + body + footer) was read whole with a 27,000-character body, with
 # roughly 700 characters of headroom left. Change these numbers only after re-measuring.
 #
-# A branch can override this file by committing its own bites.toml in its root; the
-# action prefers that copy when it exists, otherwise it uses this file (at the version
-# the project's workflow names). A branch's bites.toml needs only the keys you want to
-# change: keys it leaves out take the values shown here (the same values are built into
-# bites_tool/core.py, and a test keeps the two in step). An `include` or `exclude` list
-# that is given replaces the default list; it does not add to it.
+# Where settings come from, lowest priority first: the defaults built into
+# bites_tool/core.py (the values below are the same, and a test keeps them in step); a
+# bites.toml (a project's own, in the root of the branch being built, otherwise this one);
+# the workflow's `with:` inputs max-chars, read-cap, include and exclude. A project's
+# bites.toml needs only the keys you want to change. An `include` or `exclude` list that
+# is given replaces the default list; it does not add to it.
 
 # Files with this many characters or fewer are NOT chunked (read them directly).
 # Longer files are cut into parts whose bodies are at most this long.
@@ -20,14 +20,6 @@ max_chars     = 27000
 # The measured per-result cap. `verify` fails the build if any part file plus the
 # wrapper would exceed it.
 read_cap      = 28000
-
-# Characters the connector adds before the content (counted against read_cap).
-wrapper_chars = 82
-
-# manifest.json and last_build.json must also be readable in one call. They default to
-# max_chars; uncomment to allow a different limit. The build fails if the manifest is
-# longer, rather than letting it be truncated silently.
-# manifest_max_chars = 27000
 
 # Which tracked files are eligible. `*` stays within a directory, `**/` spans any number
 # of directories (including none), so "**/*.md" also matches README.md in the root.
@@ -58,16 +50,24 @@ include = [
   "**/*.csv",
 ]
 
-# Removed from the include set. Patch files and git internals must never be mirrored,
-# and a per-branch bites.toml is configuration, not content. If you replace this list,
-# keep the first three entries.
+# Removed from the include set. Git internals, workflows, patch files and bites.toml itself
+# (.git/**, .github/**, .bites-patches/**, bites.toml) are always excluded and cannot be
+# added back, so only your own choices belong here.
 exclude = [
-  ".git/**",
-  ".github/**",
-  ".bites-patches/**",
   "**/node_modules/**",
-  "bites.toml",
 ]
 
 # Never chunked regardless of the lists above (hard-coded in bites_tool/core.py so a
 # config edit cannot expose secrets):  .env*   *.pem   *.key   id_rsa*
+
+# ---- Advanced settings: leave these alone unless you have measured a reason --------------
+
+# Characters the connector adds before the content (counted against read_cap). It belongs
+# to the connector, not the project: 82 was measured for the GitHub MCP server connector.
+wrapper_chars = 82
+
+# manifest.json and last_build.json must also be readable in one call. They default to
+# max_chars. The build fails if the manifest is longer, rather than letting it be
+# truncated silently. Only worth raising if you chose a small max_chars for another
+# reason and need more large files in one manifest.
+# manifest_max_chars = 27000

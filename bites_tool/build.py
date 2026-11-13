@@ -36,9 +36,9 @@ import sys
 from pathlib import Path
 
 from .core import (
-    SCHEMA, BitesError, blob_sha, dumps, join_parts, list_source_files, load_config,
-    load_manifest, parse_part, part_rel, read_source, select_files, sha256_hex,
-    split_parts, write_if_changed,
+    SCHEMA, BitesError, blob_sha, collect_overrides, config_warnings, dumps, join_parts,
+    list_source_files, load_config, load_manifest, parse_part, part_rel, read_source,
+    select_files, sha256_hex, split_parts, write_if_changed,
 )
 
 
@@ -51,7 +51,9 @@ def cmd_build(a):
     (failing if it exceeds `manifest_max_chars`); write last_build.json including the
     patch report from `apply` when one is given.
     """
-    cfg = load_config(a.config)
+    cfg = load_config(a.config, collect_overrides(getattr(a, "set", [])))
+    for warning in config_warnings(cfg):
+        print(f"bites build: warning: {warning}", file=sys.stderr)
     M = cfg["max_chars"]
     src, out = Path(a.src), Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -171,7 +173,7 @@ def cmd_verify(a):
     current source file (so stale parts are caught); every large source file is in the
     manifest; and no unexpected files exist under parts/.
     """
-    cfg = load_config(a.config)
+    cfg = load_config(a.config, collect_overrides(getattr(a, "set", [])))
     M, cap, wrap = cfg["max_chars"], cfg["read_cap"], cfg["wrapper_chars"]
     src, out = Path(a.src), Path(a.out)
     man = load_manifest(out)
@@ -198,7 +200,7 @@ def cmd_verify(a):
             ptext = (out / part_rel(rel, i, n)).read_bytes().decode("utf-8")
             meta, _ = parse_part(ptext)
             if len(ptext) + wrap > cap:
-                errs.append(f"{rel} part {i}: {len(ptext)}+{wrap} chars exceeds read_cap {cap}")
+                errs.append(f"{rel} part {i}: {len(ptext)}+{wrap} chars exceeds read_cap {cap} (lower max_chars)")
             if meta["chars"] > M:
                 errs.append(f"{rel} part {i}: chars {meta['chars']} > max_chars {M}")
             if meta["start_line"] != e["start_lines"][i - 1]:
