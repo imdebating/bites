@@ -24,7 +24,7 @@ from .patches import cmd_apply
 
 def make_parser():
     """Build the argparse parser with one sub-command per `cmd_*` function."""
-    ap = argparse.ArgumentParser(prog="bites", description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(prog="python -m bites_tool", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def common(p):

@@ -44,11 +44,16 @@ OUTPUT LAYOUT (the tree of the `bites/<branch>` branch)
                                   directories, or `x.md` and `x.txt`, never collide.
 
 CONFIGURATION (bites.toml, read with the standard-library tomllib)
+    Every key is optional: a file that names only some keys gets the defaults for the
+    rest, so a project's bites.toml can be one line long.
     max_chars            no-chunk threshold and maximum part body        (default 27000)
     read_cap             measured per-result cap                         (default 28000)
     wrapper_chars        connector wrapper line counted against the cap  (default 82)
     manifest_max_chars   limit for manifest.json / last_build.json       (default max_chars)
-    include, exclude     glob lists (include is required)
+    include, exclude     glob lists (defaults: DEFAULT_INCLUDE and DEFAULT_EXCLUDE
+                         below). A list that is given replaces the default list; an
+                         empty include list is an error. The shipped bites.toml spells
+                         out the same values, and a test keeps the two in step.
 """
 from __future__ import annotations
 
@@ -70,6 +75,24 @@ SCHEMA = 1
 # File names (matched against the last path component) that are never chunked, even if
 # an include glob matches them. They are the usual homes of secrets.
 DENY_BASENAMES = (".env*", "*.pem", "*.key", "id_rsa*")
+
+# Which tracked files are eligible when a configuration does not say. Keep in step with
+# the `include` / `exclude` lists in the shipped bites.toml (tests/test_config_defaults.py
+# fails if they differ) and with the README.
+DEFAULT_INCLUDE = [
+    "**/*.md", "**/*.txt", "**/*.rst",
+    "**/*.py", "**/*.js", "**/*.ts", "**/*.go", "**/*.rs", "**/*.java", "**/*.c", "**/*.h",
+    "**/*.sh", "**/*.sql", "**/*.html", "**/*.css", "**/*.xml",
+    "**/*.json", "**/*.yml", "**/*.yaml", "**/*.toml", "**/*.ini", "**/*.cfg", "**/*.conf",
+    "**/*.csv",
+]
+DEFAULT_EXCLUDE = [
+    ".git/**",
+    ".github/**",
+    ".bites-patches/**",
+    "**/node_modules/**",
+    "bites.toml",
+]
 
 
 class BitesError(Exception):
@@ -142,7 +165,8 @@ def glob_to_re(pat: str) -> re.Pattern:
 def load_config(path) -> dict:
     """Read and validate the configuration file.
 
-    Returns a dict with the integer settings (`max_chars`, `read_cap`,
+    Every key is optional; missing keys take the defaults described in the module
+    docstring. Returns a dict with the integer settings (`max_chars`, `read_cap`,
     `wrapper_chars`, `manifest_max_chars`) and the compiled regex lists
     `include_re` / `exclude_re`. Raises BitesError for an unreadable file or an
     unusable value.
@@ -161,11 +185,11 @@ def load_config(path) -> dict:
     cfg["manifest_max_chars"] = int(raw.get("manifest_max_chars", cfg["max_chars"]))
     if cfg["max_chars"] < 1:
         raise BitesError("max_chars must be positive")
-    include = list(raw.get("include", []))
+    include = list(raw.get("include", DEFAULT_INCLUDE))
     if not include:
-        raise BitesError("config needs a non-empty include list")
+        raise BitesError("include must not be empty (leave it out to use the default list)")
     cfg["include_re"] = [glob_to_re(p) for p in include]
-    cfg["exclude_re"] = [glob_to_re(p) for p in raw.get("exclude", [])]
+    cfg["exclude_re"] = [glob_to_re(p) for p in raw.get("exclude", DEFAULT_EXCLUDE)]
     return cfg
 
 

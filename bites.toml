@@ -6,8 +6,11 @@
 # roughly 700 characters of headroom left. Change these numbers only after re-measuring.
 #
 # A branch can override this file by committing its own bites.toml in its root; the
-# action prefers that copy when it exists; otherwise the copy shipped with the action (this
-# file, at the version the project's workflow names) is used.
+# action prefers that copy when it exists, otherwise it uses this file (at the version
+# the project's workflow names). A branch's bites.toml needs only the keys you want to
+# change: keys it leaves out take the values shown here (the same values are built into
+# bites_tool/core.py, and a test keeps the two in step). An `include` or `exclude` list
+# that is given replaces the default list; it does not add to it.
 
 # Files with this many characters or fewer are NOT chunked (read them directly).
 # Longer files are cut into parts whose bodies are at most this long.
@@ -31,17 +34,33 @@ wrapper_chars = 82
 include = [
   "**/*.md",
   "**/*.txt",
+  "**/*.rst",
   "**/*.py",
-  "**/*.conf",
-  "**/*.csv",
+  "**/*.js",
+  "**/*.ts",
+  "**/*.go",
+  "**/*.rs",
+  "**/*.java",
+  "**/*.c",
+  "**/*.h",
   "**/*.sh",
+  "**/*.sql",
+  "**/*.html",
+  "**/*.css",
+  "**/*.xml",
   "**/*.json",
   "**/*.yml",
   "**/*.yaml",
+  "**/*.toml",
+  "**/*.ini",
+  "**/*.cfg",
+  "**/*.conf",
+  "**/*.csv",
 ]
 
 # Removed from the include set. Patch files and git internals must never be mirrored,
-# and a per-branch bites.toml is configuration, not content.
+# and a per-branch bites.toml is configuration, not content. If you replace this list,
+# keep the first three entries.
 exclude = [
   ".git/**",
   ".github/**",

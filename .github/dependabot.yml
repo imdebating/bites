@@ -1,9 +1,12 @@
-# Keeps the pinned action SHAs current. For the github-actions ecosystem, directory "/"
-# covers the workflows in .github/workflows and the action.yml in the repository root.
+# Keeps the pinned action SHAs current. For the github-actions ecosystem, "/" covers the
+# workflows in .github/workflows and the action.yml in the repository root; the composite
+# action in the cleanup/ subdirectory has to be listed separately.
 # Projects that use this action through a moving tag (@v1) need no Dependabot entry for it.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/cleanup"
     schedule:
       interval: "weekly"
