@@ -4,6 +4,12 @@
 #     - uses: imdebating/bites@v1
 #       with:
 #         full: false          # optional; 'true' rebuilds every large file
+#         max-chars: 27000     # optional settings, each overrides bites.toml and the defaults
+#         read-cap: 28000
+#         include: |           # one glob per line; replaces the default list
+#           **/*.md
+#         exclude: |           # one glob per line; replaces the default list
+#           docs/generated/**
 #
 # The action and the Python package it runs (bites_tool/) are fetched together at the
 # ref the caller names, so they can never drift apart: the package is found through
@@ -26,7 +32,11 @@
 #
 # Settings shared by the steps are passed through environment variables written to
 # GITHUB_ENV by step 1: BRANCH, FULL, PYTHONPATH (the package) and CFG (the configuration:
-# the project's own bites.toml if it has one, otherwise the default shipped here).
+# the project's own bites.toml if it has one, otherwise the default shipped here). The
+# inputs max-chars, read-cap, include and exclude reach the build and verify steps as
+# BITES_MAX_CHARS, BITES_READ_CAP, BITES_INCLUDE and BITES_EXCLUDE; the package gives them
+# priority over the configuration file. Inputs are only ever passed through the
+# environment, never pasted into a shell command.
 #
 # Actions used here are pinned to full commit SHAs (version in the trailing comment);
 # Dependabot updates them in THIS repository. Releasing a change: see README.md.
@@ -39,6 +49,22 @@ inputs:
     description: "'true' rebuilds and re-splits every large file instead of only changed ones"
     required: false
     default: 'false'
+  max-chars:
+    description: "Largest part body, and the size above which a file is split, in characters. Empty keeps the value from bites.toml or the default (27000)"
+    required: false
+    default: ''
+  read-cap:
+    description: "The connector's per-result limit in characters; a part plus the connector's wrapper must fit under it. Empty keeps the value from bites.toml or the default (28000)"
+    required: false
+    default: ''
+  include:
+    description: "Globs of the files to mirror, one per line; replaces the default list. Empty keeps the list from bites.toml or the default"
+    required: false
+    default: ''
+  exclude:
+    description: "Globs of files to leave out, one per line; replaces the default list (node_modules). .git, .github, .bites-patches and bites.toml are always left out. Empty keeps the list from bites.toml or the default"
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -120,6 +146,11 @@ runs:
     - name: Build parts
       if: steps.gate.outputs.go == 'true'
       shell: bash
+      env:
+        BITES_MAX_CHARS: ${{ inputs.max-chars }}
+        BITES_READ_CAP: ${{ inputs.read-cap }}
+        BITES_INCLUDE: ${{ inputs.include }}
+        BITES_EXCLUDE: ${{ inputs.exclude }}
       run: |
         FLAG=""
         if [ "$FULL" = "true" ]; then FLAG="--full"; fi
@@ -133,6 +164,11 @@ runs:
     - name: Verify round trip
       if: steps.gate.outputs.go == 'true'
       shell: bash
+      env:
+        BITES_MAX_CHARS: ${{ inputs.max-chars }}
+        BITES_READ_CAP: ${{ inputs.read-cap }}
+        BITES_INCLUDE: ${{ inputs.include }}
+        BITES_EXCLUDE: ${{ inputs.exclude }}
       run: |
         python -m bites_tool verify --config "$CFG" --src . --out out \
           --status "$RUNNER_TEMP/status.json"

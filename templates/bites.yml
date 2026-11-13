@@ -10,6 +10,10 @@
 # ref after @ (a moving major tag such as v1, an exact tag, or a full commit SHA), or
 # re-run the bootstrap script with --ref.
 #
+# Optional settings go under `with:` next to `full`: max-chars, read-cap, include and
+# exclude (see the README). They override a bites.toml in the project. Give them to the
+# bootstrap script as --set KEY=VALUE, so that running it again keeps them.
+#
 # Two jobs:
 #   bites    on every push (and by hand): mirror large files and apply patch files.
 #   cleanup  when a branch is deleted: delete that branch's bites/<branch> mirror.
@@ -54,6 +58,7 @@ jobs:
       - uses: __ACTION__@__REF__
         with:
           full: ${{ inputs.full || false }}
+__SETTINGS__
 
   cleanup:
     # Branch deletions only, and never for the output branches themselves. (A delete

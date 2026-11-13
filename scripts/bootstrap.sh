@@ -10,6 +10,12 @@
 #   --ref REF        version of the action the caller uses: a tag such as v1 (default),
 #                    an exact tag, or a full commit SHA
 #   --action O/R     repository that holds the action (default: imdebating/bites)
+#   --set KEY=VALUE  put a bites setting into the generated workflow (repeatable):
+#                    max_chars=N, read_cap=N, include=GLOB, exclude=GLOB (repeat include
+#                    or exclude once per glob). These apply to every branch; settings that
+#                    differ by branch belong in a bites.toml. Running the script again
+#                    without --set would remove them, so it stops instead (give them again,
+#                    or delete them from the workflow first).
 #   --ssh            clone and push over SSH instead of HTTPS
 #   --pr             push the workflow to a branch named bites-setup instead of the
 #                    default branch (for protected default branches); open a pull request
@@ -46,11 +52,30 @@ die()  { echo "error: $*" >&2; exit 1; }
 note() { echo "==> $*"; }
 warn() { echo "warning: $*" >&2; }
 
+SET_MAX=""; SET_CAP=""; SET_INC=(); SET_EXC=()
+add_setting() { # add_setting KEY=VALUE - remember one --set option for the generated workflow
+  [[ "$1" == *=* ]] || die "--set expects KEY=VALUE: $(printf '%q' "$1")"
+  local key="${1%%=*}" val="${1#*=}"
+  if [ -z "$val" ] || [[ "$val" =~ [[:space:]] ]] || [[ "$val" == *'${'* ]]; then
+    die "--set $(printf '%q' "$key") needs a value without spaces and without \${: $(printf '%q' "$val")"
+  fi
+  case "$key" in
+    max_chars|read_cap)
+      [[ "$val" =~ ^[0-9]{1,9}$ ]] && [ "$((10#$val))" -ge 1 ] || die "--set $key needs a whole number of at least 1: $(printf '%q' "$val")"
+      if [ "$key" = max_chars ]; then SET_MAX="$((10#$val))"; else SET_CAP="$((10#$val))"; fi ;;
+    include) SET_INC+=("$val") ;;
+    exclude) SET_EXC+=("$val") ;;
+    wrapper_chars|manifest_max_chars) die "$key is an advanced setting: put it in a bites.toml, not in the workflow" ;;
+    *) die "unknown setting $(printf '%q' "$key"); --set accepts max_chars, read_cap, include and exclude" ;;
+  esac
+}
+
 REF="v1"; ACTION="imdebating/bites"; PROTO="https"; URL=""; ACTION_URL=""; PREFLIGHT=1; PR=0; DRY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --ref)          [ $# -ge 2 ] || die "--ref needs a value"; REF="$2"; shift 2 ;;
     --action)       [ $# -ge 2 ] || die "--action needs a value"; ACTION="$2"; shift 2 ;;
+    --set)          [ $# -ge 2 ] || die "--set needs KEY=VALUE"; add_setting "$2"; shift 2 ;;
     --url)          [ $# -ge 2 ] || die "--url needs a value"; URL="$2"; shift 2 ;;
     --action-url)   [ $# -ge 2 ] || die "--action-url needs a value"; ACTION_URL="$2"; shift 2 ;;
     --no-preflight) PREFLIGHT=0; shift ;;
@@ -80,6 +105,20 @@ for b in ${BRANCHES[@]+"${BRANCHES[@]}"}; do
   # The output branches and the setup branch are never source branches.
   case "$b" in bites/*|bites-setup) die "refusing to mirror $b" ;; esac
 done
+
+# The lines that --set adds under `with:` in the generated workflow (empty if none).
+SETTINGS_BLOCK=""
+if [ -n "$SET_MAX" ]; then SETTINGS_BLOCK+="          max-chars: $SET_MAX"$'\n'; fi
+if [ -n "$SET_CAP" ]; then SETTINGS_BLOCK+="          read-cap: $SET_CAP"$'\n'; fi
+if [ ${#SET_INC[@]} -gt 0 ]; then
+  SETTINGS_BLOCK+="          include: |"$'\n'
+  for g in "${SET_INC[@]}"; do SETTINGS_BLOCK+="            $g"$'\n'; done
+fi
+if [ ${#SET_EXC[@]} -gt 0 ]; then
+  SETTINGS_BLOCK+="          exclude: |"$'\n'
+  for g in "${SET_EXC[@]}"; do SETTINGS_BLOCK+="            $g"$'\n'; done
+fi
+SETTINGS_BLOCK="${SETTINGS_BLOCK%$'\n'}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="$HERE/../templates/bites.yml"
@@ -155,9 +194,17 @@ remote_has_branch() {
 }
 
 # ---- 1. the caller workflow on the default branch -------------------------------------
-sed -e "s#__ACTION__#$ACTION#g" -e "s#__REF__#$REF#g" "$TEMPLATE" > "$TMP/bites.yml"
+# Fill the settings placeholder line (it disappears if there are no settings), then the
+# action and version placeholders.
+BLOCK="$SETTINGS_BLOCK" awk '/^__SETTINGS__$/ { if (ENVIRON["BLOCK"] != "") print ENVIRON["BLOCK"]; next } { print }' "$TEMPLATE" \
+  | sed -e "s#__ACTION__#$ACTION#g" -e "s#__REF__#$REF#g" > "$TMP/bites.yml"
 WF=".github/workflows/bites.yml"
+SETTING_LINE='^[[:space:]]+(max-chars|read-cap|include|exclude):'
 git checkout --quiet "$DEFAULT"
+# Never silently drop settings that someone added to the installed workflow.
+if [ -f "$WF" ] && ! cmp -s "$TMP/bites.yml" "$WF" && grep -Eq "$SETTING_LINE" "$WF" && ! grep -Eq "$SETTING_LINE" "$TMP/bites.yml"; then
+  die "the existing $WF sets bites options (max-chars, read-cap, include or exclude) that this run would remove; give them again with --set, or delete them from the workflow first"
+fi
 if [ -f "$WF" ] && cmp -s "$TMP/bites.yml" "$WF"; then
   note "$WF already up to date on $DEFAULT"
   WF_PUSHED=0
