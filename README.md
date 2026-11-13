@@ -111,8 +111,11 @@ contains the parts. Then give your assistant the instructions in [BITES_INSTRUCT
     scripts/bootstrap.sh OWNER/REPO main feature
 
 It installs the workflow on the default branch, creates `bites/main` and `bites/feature` if they do not exist, and
-warns about a listed branch that lacks the workflow. Options: `--ref` (version the workflow uses), `--ssh`, `--pr`
-(push the workflow to a branch for a pull request instead of the default branch), `--dry-run`. See `--help`.
+warns about a listed branch that lacks the workflow. Before it changes anything, it checks without your credentials that
+the action repository and the version you ask for can be reached, and prints a warning (it does not stop) if not.
+Options: `--ref` (version the workflow uses), `--action OWNER/REPO` (take the action from another repository, such as a
+fork), `--ssh`, `--pr` (push the workflow to a branch for a pull request instead of the default branch), `--dry-run`,
+and `--no-preflight` (skip the reachability check). See `--help`.
 
 ## What is on the mirror branch
 
@@ -137,8 +140,9 @@ bites/main
 - Builds are incremental: a file is re-split only when its git blob changes.
 - If a build fails, the previous parts stay as they were and only `last_build.json` is updated with the error.
 
-Which files are mirrored is set by `include` and `exclude` globs. By default: `.md`, `.txt`, `.py`, `.conf`, `.csv`,
-`.sh`, `.json`, `.yml`, `.yaml`, excluding `.github/`, `.git/`, `.bites-patches/`, `node_modules/` and `bites.toml`.
+Which files are mirrored is set by `include` and `exclude` globs. By default: `.md`, `.txt`, `.rst`, `.py`, `.js`, `.ts`,
+`.go`, `.rs`, `.java`, `.c`, `.h`, `.sh`, `.sql`, `.html`, `.css`, `.xml`, `.json`, `.yml`, `.yaml`, `.toml`, `.ini`,
+`.cfg`, `.conf` and `.csv`, excluding `.github/`, `.git/`, `.bites-patches/`, `node_modules/` and `bites.toml`.
 `.env*`, `*.pem`, `*.key` and `id_rsa*` are never mirrored, whatever the configuration says.
 
 ## Editing large files with patches
@@ -163,7 +167,11 @@ docstring.
 
 ## Configuration
 
-Add a `bites.toml` to a branch's root to override the defaults, which live in this repository's `bites.toml`.
+To change the defaults, commit a `bites.toml` to the root of a branch. It needs only the settings you want to change:
+anything it leaves out keeps the default from this repository's `bites.toml`. The action reads the copy on the branch
+being built, so each branch can differ. A given `include` or `exclude` list replaces the default list rather than adding
+to it, so if you replace `exclude`, keep `.github/**`, `.git/**` and `.bites-patches/**` in it. For example, a
+`bites.toml` containing only `include = ["**/*.md", "**/*.py"]` mirrors just those two kinds of file.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -227,6 +235,10 @@ A mirror holds only derived data, so deleting one is cheap: recreate the branch 
 ## Limitations
 
 - UTF-8 text only. Other files are listed under `skipped` in the manifest.
+- A branch's `manifest.json` must fit in one read (`manifest_max_chars`, default 27,000 characters). Each mirrored file
+  takes roughly 350 characters of it, so with the defaults a branch holds about 70 to 80 large files. Beyond that the
+  build fails with an error naming the limit instead of publishing a cut-off manifest; narrow `include` and `exclude` if
+  you reach it.
 - Reading a large file takes several tool calls (one per part), and an assistant must follow the procedure in
   `BITES_INSTRUCTIONS.md`; there is no enforcement on the assistant's side.
 - The mirror lags the source by the build time, so assistants should check freshness (the instructions explain how).
@@ -240,6 +252,7 @@ A mirror holds only derived data, so deleting one is cheap: recreate the branch 
 | A push does not start a build | The pushed branch has no `.github/workflows/bites.yml` (merge the default branch into it), or Actions is disabled. |
 | The run finishes in seconds and changes nothing | There is no `bites/<branch>` branch. Create it (step 2). |
 | "Unable to resolve action ... repository not found" | The action repository is private or its Access setting does not allow your repository; or the tag in your workflow does not exist; or an organization allowlist blocks it. |
+| `bootstrap.sh` warns "cannot reach" or "no tag or branch named ..." | The action repository is private or misspelled, or it has no such tag, so workflows in your repository would fail with the error above. Correct `--action` or `--ref`, make the action repository public (or share it through its Access setting), or pass `--no-preflight` to skip the check. |
 | Push rejected, "protected branch" or "permission denied" | The source branch is protected (allow `github-actions[bot]`), or an organization policy caps the workflow token to read-only. |
 | `last_build.json` says `"status": "error"` | `stage` and `message` name the failure (`apply`: a patch was rejected; `build`: for example a manifest over its limit; `verify`: a part did not match its source). Previous parts are left untouched. A rejected patch file stays in `.bites-patches/` and blocks later builds until it is fixed or deleted. |
 | `source_commit` in `last_build.json` is behind the branch head | The build has not finished yet, or it failed before publishing; check the run in the Actions tab. |

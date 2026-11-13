@@ -11,9 +11,9 @@ README, not here.
 Repository: OWNER/REPO. Working branch: BRANCH.
 
 The GitHub connector cuts any single result at about 28,000 characters, so large text files
-cannot be read whole. Text files (.md .txt .py .conf .csv .sh .json .yml .yaml, except
-anything under .github/ or excluded by the project's bites.toml) longer than 27,000
-characters are mirrored as exact parts on branch bites/BRANCH. Rules:
+cannot be read whole. Text files longer than 27,000 characters (except anything under
+.github/ or excluded by the project's bites.toml) are mirrored as exact parts on branch
+bites/BRANCH, and manifest.json on that branch lists exactly which ones. Rules:
 
 1. Before reading any such file, read bites/BRANCH: find its head commit H (list_commits,
    perPage 1), then read manifest.json and last_build.json at H (use the sha argument).
