@@ -1,6 +1,6 @@
 """Shared helpers for the shell-script tests: a throw-away bare remote and a command runner.
 
-Imported by test_cleanup.py and test_prune.py (pytest puts the tests directory on sys.path).
+Imported by test_cleanup.py, test_prune.py and test_preflight.py (pytest puts the tests directory on sys.path).
 A private HOME and fixed git identity keep the developer's own git configuration out of
 the results.
 """

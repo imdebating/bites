@@ -1,8 +1,9 @@
 # .github/workflows/bites.yml
 #
-# This is the TEMPLATE. scripts/bootstrap.sh copies it into a project, replacing
-# __ACTION__ (the repository that holds the action, default imdebating/bites) and
-# __REF__ (the version, default v1). Until those are replaced it is not a valid workflow.
+# TEMPLATE for the caller workflow. scripts/bootstrap.sh copies it into a project and fills
+# in the two placeholders on the `uses:` lines below: the repository that holds the actions
+# (default imdebating/bites) and the version (default v1). Until then it is not a valid
+# workflow.
 #
 # Thin caller. All of the work is done by the shared actions; this file only decides WHEN
 # to run and WHAT the jobs may do. Do not edit the steps. To change the version, change the
