@@ -26,6 +26,6 @@ RUNNING
 Standard library only. Requires Python 3.11+ (tomllib) and `git` on PATH.
 """
 
-# Keep in step with the release tag: tag v1.2.1 means __version__ = "1.2.1" (the moving
+# Keep in step with the release tag: tag v1.2.2 means __version__ = "1.2.2" (the moving
 # tag v1 follows the latest 1.x release). See the README, "Versions and releases".
-__version__ = "1.2.1"
+__version__ = "1.2.2"
