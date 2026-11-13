@@ -1,158 +1,272 @@
 # bites
 
-Mirrors large text files as exact, size-capped parts on a `bites/<branch>` branch, and applies
-patch files to them, so a chat assistant whose GitHub connector cuts any single result at about
-28,000 characters can still read and edit them. One public repository serves every project:
-a project adds a small caller workflow that uses this repository's actions, and nothing else is
-copied into it.
+Make large text files readable and editable by AI assistants whose GitHub connector cuts off long results.
 
-## Documentation map
+Some chat assistants read repository files through a GitHub connector (for example the GitHub MCP server) that
+truncates any single result at a fixed size. In the setup this project was built and measured in, that size was about
+28,000 characters. A file over the limit arrives cut off, and the assistant cannot tell what is missing. `bites` is a
+pair of GitHub Actions that keep an exact, size-capped copy of each large file on a separate branch, split into small
+numbered "parts" that can each be read whole. It also lets the assistant edit a large file by committing a small patch
+file, so the whole file never has to be retyped.
 
-| Where | What it covers |
-|---|---|
-| This README | layout, onboarding a repository, settings, cleanup, releasing, troubleshooting |
-| `BITES_INSTRUCTIONS.md` | what to paste into a chat, and the read and patch procedures the assistant follows |
-| `action.yml`, `cleanup/action.yml` (header comments) | what each action does, step by step |
-| `templates/bites.yml` (header comments) | the caller workflow and its placeholders |
-| `scripts/*.sh` (header comments, or `--help`) | every option of the bootstrap, cleanup and prune scripts |
-| `bites.toml` (comments) | every setting, with the measurements behind the numbers |
-| `bites_tool/` module docstrings | the part file format, manifest and `last_build.json` layout, patch grammar, glob syntax, exit codes. Start with `__init__.py` |
-| `tests/` | executable examples of every rule above |
+## Is this for you?
+
+It helps if all of these are true:
+
+- your assistant reaches the repository only through a hosted GitHub connector (no local checkout, no code execution),
+- the repository has text files longer than the connector's per-result limit, and
+- you want the assistant to read them exactly, and to edit them.
+
+It is probably not for you if the assistant can clone the repository and read files from disk, or if your files all fit
+under the limit. Binary and non-UTF-8 files are skipped.
 
 ## How it works
 
-1. A push to any branch starts the caller workflow in the project, which runs the `bites` action.
-2. The action does nothing unless a branch `bites/<branch>` exists (the opt-in switch). If one
-   exists it applies any patch files waiting in `.bites-patches/`, rebuilds the parts of files
-   longer than 27,000 characters, checks that every part reassembles to its source, and pushes
-   the result to `bites/<branch>`.
-3. The assistant reads `manifest.json`, `last_build.json` and `parts/...` on `bites/<branch>`
-   instead of the oversized files, and edits large files by committing small patch files.
-4. When a branch is deleted, the `cleanup` action deletes its `bites/<branch>` mirror.
+1. A push to any branch starts a small workflow in your repository, which runs the `bites` action.
+2. The action does nothing unless a branch named `bites/<branch>` exists. That branch is the opt-in switch.
+3. If it exists, the action applies any patch files waiting in `.bites-patches/`, splits every text file longer than
+   `max_chars` (default 27,000 characters) into parts, checks that each file reassembles byte for byte, and pushes the
+   result to `bites/<branch>`.
+4. The assistant reads `manifest.json`, `last_build.json` and `parts/...` on `bites/<branch>` instead of the oversized
+   file. To edit, it commits a patch file to the source branch; the next build applies it.
+5. When a branch is deleted, the `cleanup` action deletes its `bites/<branch>`.
 
-## Layout
+A build usually finishes well under a minute.
 
-| Path | Purpose |
-|---|---|
-| `action.yml` | composite action: gate, apply patches, build, verify, publish |
-| `cleanup/action.yml` | composite action: delete `bites/<branch>` when `<branch>` is deleted |
-| `bites_tool/` | the Python package the build runs; standard library only, Python 3.11+ and `git` |
-| `bites.toml` | default configuration; a project's own `bites.toml` in its root overrides it |
-| `templates/bites.yml` | the caller workflow installed into projects (build job and cleanup job) |
-| `scripts/bootstrap.sh` | installs the caller and creates `bites/<branch>` branches in any repository |
-| `scripts/cleanup.sh` | the decision logic behind the cleanup action |
-| `scripts/prune.sh` | lists (or deletes) mirrors whose source branch no longer exists |
-| `tests/` | test suite; the shell scripts are run against local git repositories |
-| `BITES_INSTRUCTIONS.md` | what to paste into a chat so the assistant reads and edits correctly |
-| `.github/workflows/ci.yml` | runs the tests on every push to `main` and on pull requests |
-| `.github/dependabot.yml` | weekly updates of the pinned action SHAs in `action.yml`, `cleanup/action.yml` and `ci.yml` |
+## Quick start
 
-## Adding bites to a repository (new or existing)
+Requirements: GitHub Actions enabled for the repository, and GitHub-hosted Linux runners (the workflow uses
+`ubuntu-24.04`; other runners are untested). The assistant's token needs read access, and write access if it will push
+patch files.
 
-Run from a clone of this repository, with git credentials that can push to the target:
+### 1. Add the workflow to the default branch
 
-    scripts/bootstrap.sh imdebating/some-project main feature
+Create `.github/workflows/bites.yml`:
 
-- Installs `.github/workflows/bites.yml` on the default branch (committed directly; use `--pr`
-  for a protected default branch).
-- Creates an empty `bites/main` and `bites/feature` if they do not exist.
-- Warns about any listed branch that does not contain the workflow yet; merge the default branch
-  into it. Branches created after the workflow is on the default branch inherit it.
-- Safe to repeat; `--dry-run` shows what it would do. Works the same for repositories in your
-  organizations, as long as you can push to them and their Actions policy allows these actions.
-- Re-run it on every existing project after a release that changes the template (for example
-  the one that added the cleanup job); it rewrites the caller only if it differs.
+```yaml
+name: bites
 
-Then push to a mirrored branch (or run the `bites` workflow by hand with "full" ticked) to
-build the first set of parts. Chat setup (what to paste, which repository and branch) is in
-`BITES_INSTRUCTIONS.md`.
+on:
+  push:
+    branches-ignore: ['bites/**']
+  delete:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Rebuild and re-split every large file instead of only changed ones
+        type: boolean
+        default: false
 
-## Repository settings
+permissions:
+  contents: write
 
-In the `bites` repository itself:
+jobs:
+  bites:
+    if: github.event_name != 'delete'
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: bites-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: imdebating/bites@v1
+        with:
+          full: ${{ inputs.full || false }}
 
-- Visibility public; Actions enabled (the default). No secrets or variables.
-- No rule that blocks updating or deleting the `v1` tag (each release moves it).
+  cleanup:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'bites/')
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: bites-cleanup-${{ github.event.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: imdebating/bites/cleanup@v1
+```
 
-In every project repository that uses bites:
+A branch needs this file to build on push, so create other branches after it is on the default branch, or merge the
+default branch into older ones. The `delete` trigger always uses the copy on the default branch.
 
-1. Settings > General > Pull Requests: tick **Automatically delete head branches** if your
-   branches are short-lived (one per pull request). Leave it off for long-lived branches. It
-   needs admin permission, is per repository, and only affects branches merged through a pull
-   request. Branch protection rules and rulesets can stop a branch being deleted.
-2. Settings > Rules or Branches: do not protect `bites/**`, and do not add a deletion
-   restriction to it; the workflow pushes to those branches and deletes them.
-3. If a mirrored source branch is protected, let `github-actions[bot]` push to it (applied
-   patches are committed straight to it).
-4. Settings > Actions: Actions enabled; if an organization limits Actions to an allowlist, add
-   `imdebating/bites@*`.
-5. Give the chat connector's token access to the repository.
+### 2. Create the mirror branch for each branch you want mirrored
+
+From a clean working tree:
+
+```
+git switch --orphan bites/main
+git commit --allow-empty -m "bites: init"
+git push -u origin bites/main
+git switch main
+```
+
+Repeat with `bites/<branch>` for every other branch. Do not protect `bites/**`.
+
+### 3. Push
+
+Push a commit to `main` (or run the `bites` workflow by hand with "full" ticked). When the run finishes, `bites/main`
+contains the parts. Then give your assistant the instructions in [BITES_INSTRUCTIONS.md](BITES_INSTRUCTIONS.md).
+
+### Shortcut: the bootstrap script
+
+`scripts/bootstrap.sh` does steps 1 and 2 for you, for new or existing repositories, and is safe to repeat:
+
+    git clone https://github.com/imdebating/bites && cd bites
+    scripts/bootstrap.sh OWNER/REPO main feature
+
+It installs the workflow on the default branch, creates `bites/main` and `bites/feature` if they do not exist, and
+warns about a listed branch that lacks the workflow. Options: `--ref` (version the workflow uses), `--ssh`, `--pr`
+(push the workflow to a branch for a pull request instead of the default branch), `--dry-run`. See `--help`.
+
+## What is on the mirror branch
+
+```
+bites/main
+├── manifest.json        index of every chunked file
+├── last_build.json      result of the latest run
+└── parts/
+    └── docs/guide.md/
+        ├── 0001-of-0003.txt
+        ├── 0002-of-0003.txt
+        └── 0003-of-0003.txt
+```
+
+- A file at or under `max_chars` characters is not chunked and is read directly.
+- A longer file is cut at exact multiples of `max_chars` characters (not at line or word boundaries); the last part holds
+  the remainder.
+- Each part is a header line, the body, and a footer line, so a truncated read is detectable:
+  `<<<BITE file=... part=2/3 chars=27000 start_line=412 sha256=... >>>` ... `<<<END BITE 2/3>>>`.
+- `manifest.json` lists each chunked file with its git blob SHA, size, SHA-256, part count and the first line of each
+  part. `last_build.json` has `status` (`ok` or `error`), the source commit, which files changed, and any patch results.
+- Builds are incremental: a file is re-split only when its git blob changes.
+- If a build fails, the previous parts stay as they were and only `last_build.json` is updated with the error.
+
+Which files are mirrored is set by `include` and `exclude` globs. By default: `.md`, `.txt`, `.py`, `.conf`, `.csv`,
+`.sh`, `.json`, `.yml`, `.yaml`, excluding `.github/`, `.git/`, `.bites-patches/`, `node_modules/` and `bites.toml`.
+`.env*`, `*.pem`, `*.key` and `id_rsa*` are never mirrored, whatever the configuration says.
+
+## Editing large files with patches
+
+The assistant never rewrites a mirrored file directly. It commits a patch file to `.bites-patches/` on the source branch:
+
+```
+@@@ FILE path/to/file.md
+@@@ BASE 4d9cd51ffe2d
+@@@ FIND
+exact existing text
+@@@ REPLACE
+the new text
+@@@ END
+```
+
+`BASE` is the start of the file's current git blob SHA, so a patch made against an outdated file is rejected. Each
+`FIND` must match exactly once. Patches also support `APPEND` and creating new files. All pending patch files are applied
+together or not at all; on success the workflow commits the result to the source branch, deletes the patch files, and
+rebuilds the parts. The full grammar is in [BITES_INSTRUCTIONS.md](BITES_INSTRUCTIONS.md) and the `bites_tool/patches.py`
+docstring.
+
+## Configuration
+
+Add a `bites.toml` to a branch's root to override the defaults, which live in this repository's `bites.toml`.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `max_chars` | 27000 | No-chunk threshold and maximum part body, in characters (Unicode code points, not bytes) |
+| `read_cap` | 28000 | The connector's per-result limit; the build fails if a part plus the wrapper would exceed it |
+| `wrapper_chars` | 82 | Characters the connector adds in front of the content |
+| `manifest_max_chars` | `max_chars` | Limit for `manifest.json` and `last_build.json`; the build fails rather than let them be cut off |
+| `include`, `exclude` | see above | Glob lists (`*` within a directory, `**/` across directories) |
+
+The defaults were measured for one chat client. Yours will differ, so measure before relying on them: commit a text file
+with numbered lines, ask the assistant to read it, and note where it is cut. Set `read_cap` to that size,
+`wrapper_chars` to what the client adds, and `max_chars` a little lower (the defaults leave roughly 700 characters of
+headroom for the part header and footer). A client that limits by tokens rather than characters needs a conservative
+character estimate.
+
+## Inputs and permissions
+
+| Action | Input | Default | Meaning |
+|---|---|---|---|
+| `imdebating/bites` | `full` | `false` | `true` rebuilds and re-splits every large file |
+| `imdebating/bites/cleanup` | `dry-run` | `false` | `true` only logs what it would delete |
+
+Both need the calling job to grant `permissions: contents: write`. Set it in the workflow, as above.
 
 ## Cleaning up mirror branches
 
-A mirror holds only derived data, so deleting one is cheap: re-run `scripts/bootstrap.sh` for
-the branch and the next push rebuilds it.
+A mirror holds only derived data, so deleting one is cheap: recreate the branch and the next push rebuilds it.
 
-- **Automatic.** The caller workflow also listens for the `delete` event. When a branch is
-  deleted (by hand, or by "Automatically delete head branches" after a merge) the `cleanup` job
-  deletes `bites/<branch>`. It skips tags, the default branch, `bites/*` branches, a branch that
-  exists again by the time it runs, and branches that have no mirror. A `delete` event runs the
-  workflow file on the default branch, so only the default branch needs the updated caller.
-- **Restoring a branch.** GitHub's **Restore branch** button on a closed pull request recreates
-  the source branch. It needs write access, is not shown while another pull request is open from
-  the same branch, and GitHub does not document a time limit. The mirror is not restored:
-  re-run `scripts/bootstrap.sh` for that branch. A branch deleted without a pull request has no
-  button; recreate it from a commit instead (`git branch NAME <sha>` then push).
-- **Sweeping.** `scripts/prune.sh OWNER/REPO` lists mirrors whose source branch is gone;
-  add `--delete` to remove them. Use it once for mirrors orphaned before the cleanup job existed,
-  and whenever a delete event may have been missed.
-- **Dry run.** Set `dry-run: true` on the cleanup step in the caller to log what would be
-  deleted without deleting it.
+- **Automatic.** When a branch is deleted, by hand or by the repository's "Automatically delete head branches" setting
+  after a pull request merge, the `cleanup` job deletes `bites/<branch>`. It skips tags, the default branch, `bites/*`
+  branches, a branch that exists again by the time it runs, and branches that have no mirror.
+- **Restoring a branch.** GitHub's "Restore branch" button on a closed pull request recreates the source branch, but not
+  the mirror: create `bites/<branch>` again (step 2 above).
+- **Sweeping.** `scripts/prune.sh OWNER/REPO` lists mirrors whose source branch no longer exists; add `--delete` to remove
+  them. Use it for mirrors orphaned before the cleanup job existed, or if a delete event was missed.
 
-## How a project refers to these actions
+## Repository settings
 
-The caller uses `imdebating/bites@v1` and `imdebating/bites/cleanup@v1`: a moving major tag, so
-every project and branch picks up a new release without being edited. The alternatives are an
-exact tag (`@v1.2.3`) or a full commit SHA, which an organization may require in its Actions
-policy. Re-run the bootstrap script with `--ref` to change it on the default branch.
+- Actions must be enabled. If your organization limits Actions to an allowlist, add `imdebating/bites@*`.
+- Do not protect `bites/**` or restrict deletions on it: the workflow pushes to those branches and deletes them.
+- Applied patches are committed straight to the source branch, so if it is protected, allow `github-actions[bot]` to push.
+- Optional: turn on Settings > General > Pull Requests > "Automatically delete head branches" if your branches are
+  short-lived. Rulesets and branch protection can stop a branch being deleted.
+- If you fork this repository privately, set the fork's Settings > Actions > General > Access so your other repositories
+  can use it.
 
-## Releasing a change
+## Security and cost
 
-1. Change the code on a branch, open a pull request, and let CI pass.
-2. Update `__version__` in `bites_tool/__init__.py` to the new version number.
-3. Merge to `main`, then tag it:
+- **Permissions.** The workflow needs `contents: write` to push to your branches. It uses only the job's `GITHUB_TOKEN`.
+  The bites code itself makes no network calls beyond running git against your repository. Patch paths are limited to the working tree: absolute
+  paths, `..` and `.git/` are rejected.
+- **Your content is duplicated.** Parts of your files are copied to the mirror branch. Anyone who can read the
+  repository can read them. The secret-like file names above are never copied, but a secret inside a mirrored file is.
+- **Supply chain.** `@v1` is a moving tag. To control exactly what runs, pin a full commit SHA instead
+  (`imdebating/bites@<sha>`), and let Dependabot propose updates. The actions this project uses internally are pinned to
+  full SHAs.
+- **Cost.** The workflow starts on every push to every branch. With no mirror it exits within seconds; with one, a build
+  takes roughly 10 to 60 seconds of runner time. On private repositories that counts against your Actions minutes. Storage
+  grows by the size of the mirrored files.
 
-       git tag v1.2.0 && git push origin v1.2.0
-       git tag -f v1 && git push -f origin v1
+## Limitations
 
-   `v1` moves to the new release; every project using `@v1` uses it from its next run.
-4. Make a breaking change (for example a new manifest schema) a new major tag, `v2`, and move
-   projects over deliberately.
-5. If the release changes `templates/bites.yml`, re-run `scripts/bootstrap.sh` on each project.
-
-The actions and the package are fetched together at the same ref, so they cannot drift apart.
-When a change alters what the assistant sees (file layout, manifest fields, patch grammar), update
-`BITES_INSTRUCTIONS.md` in the same pull request.
+- UTF-8 text only. Other files are listed under `skipped` in the manifest.
+- Reading a large file takes several tool calls (one per part), and an assistant must follow the procedure in
+  `BITES_INSTRUCTIONS.md`; there is no enforcement on the assistant's side.
+- The mirror lags the source by the build time, so assistants should check freshness (the instructions explain how).
+- Applied patches add a commit to the source branch.
+- Tested on GitHub-hosted Ubuntu runners and with the GitHub MCP server connector. Other runners and connectors are untested.
 
 ## Troubleshooting
 
 | Symptom | Likely cause and fix |
 |---|---|
-| A push does not start a build | The pushed branch has no `.github/workflows/bites.yml` (merge the default branch into it), or Actions is disabled for the repository. |
-| The run finishes in seconds and changes nothing | There is no `bites/<branch>` branch. Create it with the bootstrap script. |
-| "Unable to resolve action" | The tag in the caller does not exist (push `v1`), or an organization's Actions policy blocks this repository (add `imdebating/bites@*` to its allowlist). |
-| Push rejected, "protected branch" or "permission denied" | The source branch is protected (let `github-actions[bot]` push to it), or the organization caps the workflow token to read-only. |
-| `last_build.json` says `"status": "error"` | `stage` and `message` name the failure (`apply`: a patch was rejected; `build`: for example a manifest over its limit; `verify`: a part did not match its source). The previous parts are left untouched. A rejected patch file stays in `.bites-patches/` and blocks later builds until it is fixed or deleted. |
-| `last_build.json` `source_commit` is behind the branch head | The build has not finished, or it failed before publishing; check the run in the Actions tab. |
-| A deleted branch's `bites/` mirror is still there | The caller on the default branch predates the cleanup job (re-run the bootstrap script), a rule blocks deleting `bites/**`, or the delete event did not fire. Run `scripts/prune.sh`. |
-| A restored branch no longer builds | Its mirror was deleted with it. Re-run the bootstrap script for that branch. |
+| A push does not start a build | The pushed branch has no `.github/workflows/bites.yml` (merge the default branch into it), or Actions is disabled. |
+| The run finishes in seconds and changes nothing | There is no `bites/<branch>` branch. Create it (step 2). |
+| "Unable to resolve action ... repository not found" | The action repository is private or its Access setting does not allow your repository; or the tag in your workflow does not exist; or an organization allowlist blocks it. |
+| Push rejected, "protected branch" or "permission denied" | The source branch is protected (allow `github-actions[bot]`), or an organization policy caps the workflow token to read-only. |
+| `last_build.json` says `"status": "error"` | `stage` and `message` name the failure (`apply`: a patch was rejected; `build`: for example a manifest over its limit; `verify`: a part did not match its source). Previous parts are left untouched. A rejected patch file stays in `.bites-patches/` and blocks later builds until it is fixed or deleted. |
+| `source_commit` in `last_build.json` is behind the branch head | The build has not finished yet, or it failed before publishing; check the run in the Actions tab. |
+| A deleted branch's mirror is still there | The workflow on the default branch predates the cleanup job, a rule blocks deleting `bites/**`, or the delete event did not fire. Run `scripts/prune.sh`. |
+| A restored branch no longer builds | Its mirror was deleted with it. Create `bites/<branch>` again. |
 
-## Notes
+## Repository layout
 
-- The calling job needs `permissions: contents: write` (the template sets it). This is set in the
-  workflow itself, so the repository's default token permission should not matter; an organization
-  or enterprise policy that caps the token would.
-- Patch commits are pushed straight to the source branch, so a protected branch needs a rule that
-  lets `github-actions[bot]` push. Keep `bites/*` unprotected.
-- Dependabot in this repository updates the SHAs pinned inside the actions. Projects need no
-  Dependabot entry for them while they use a moving tag.
+| Path | Purpose |
+|---|---|
+| `action.yml` | composite action: gate, apply patches, build, verify, publish |
+| `cleanup/action.yml` | composite action: delete `bites/<branch>` when `<branch>` is deleted |
+| `bites_tool/` | the Python package the build runs: standard library only, Python 3.11+ and `git` |
+| `bites.toml` | default configuration |
+| `templates/bites.yml` | the workflow that `scripts/bootstrap.sh` installs |
+| `scripts/` | `bootstrap.sh` (install), `cleanup.sh` (logic behind the cleanup action), `prune.sh` (sweep orphaned mirrors) |
+| `BITES_INSTRUCTIONS.md` | what to paste into a chat so the assistant reads and edits correctly |
+| `tests/` | test suite; the shell scripts run against local git repositories |
+
+Module docstrings describe the part format, manifest layout, patch grammar and exit codes; start with
+`bites_tool/__init__.py`. To run the tests locally (Python 3.11+): create a virtual environment, `python -m pip install
+pytest`, then `python -m pytest tests -q`.
+
+## Versions and releases
+
+Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.1.0`, or a full commit SHA. A breaking
+change gets a new major tag. Maintainers: change the code through a pull request, bump `__version__` in
+`bites_tool/__init__.py`, tag the release (`vX.Y.Z`), and move the major tag (`git tag -f v1 && git push -f origin v1`).
+If a release changes `templates/bites.yml`, projects re-run `scripts/bootstrap.sh` to update their workflow.
+Update `BITES_INSTRUCTIONS.md` in the same pull request as any change to what the assistant sees.
