@@ -13,8 +13,10 @@ last_build.json
     status "ok":     source_branch, source_commit, changed{path: chars/parts before and
                      after}, removed[], unchanged_chunked, patches[] (per patch section:
                      patch, file, lines_added, lines_removed, operations)
-                     truncated_report: true is added (and patches cut to the first 20)
-                     when the report would not fit in one read.
+                     truncated_report: true is added when the report would not fit in
+                     one read: patches are cut to the first 20 and, if that is not
+                     enough, changed and removed are cut to their first entries
+                     (changed_total and removed_total then give the full counts).
     status "error":  stage ("apply" | "build" | "verify" | ...), message, plus
                      source_branch / source_commit. Parts are left untouched on error.
 
@@ -141,6 +143,19 @@ def cmd_build(a):
         report["patches"] = report["patches"][:20]
         report["truncated_report"] = True
         rtext = dumps(report)
+    if len(rtext) > MM:
+        # Still too long: keep only the first entries of `changed` and `removed`, halving
+        # the number kept (50, 25, 12, ... 0) until the report fits.
+        report["changed_total"] = len(changed)
+        report["removed_total"] = len(removed)
+        keep = 50
+        while True:
+            report["changed"] = dict(sorted(changed.items())[:keep])
+            report["removed"] = removed[:keep]
+            rtext = dumps(report)
+            if len(rtext) <= MM or keep == 0:
+                break
+            keep //= 2
     write_if_changed(out / "last_build.json", rtext.encode("utf-8"))
     print(f"bites build: {len(files)} chunked file(s), {len(changed)} rebuilt, {len(removed)} removed")
     return 0

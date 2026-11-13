@@ -5,7 +5,8 @@
 #
 # usage: scripts/bootstrap.sh [options] OWNER/REPO [BRANCH ...]
 #
-#   BRANCH ...       source branches to mirror (default: the repository's default branch)
+#   BRANCH ...       source branches to mirror (default: the repository's default branch);
+#                    names may use only letters, digits and . _ / -
 #   --ref REF        version of the action the caller uses: a tag such as v1 (default),
 #                    an exact tag, or a full commit SHA
 #   --action O/R     repository that holds the action (default: imdebating/bites)
@@ -66,13 +67,16 @@ done
 TARGET="$1"; shift
 BRANCHES=("$@")
 
-# Validate everything that ends up in a URL, a sed expression or a ref name.
+# Validate everything that ends up in a URL, a sed expression or a ref name. printf %q shows
+# an invisible character (for example a non-breaking space pasted from a web page) as an
+# escape sequence instead of letting it hide in the message.
 re_repo='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
-[[ "$TARGET" =~ $re_repo ]] || die "target must look like OWNER/REPO: $TARGET"
-[[ "$ACTION" =~ $re_repo ]] || die "--action must look like OWNER/REPO: $ACTION"
-[[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || die "--ref contains unexpected characters: $REF"
+[[ "$TARGET" =~ $re_repo ]] || die "target must look like OWNER/REPO: $(printf '%q' "$TARGET")"
+[[ "$ACTION" =~ $re_repo ]] || die "--action must look like OWNER/REPO: $(printf '%q' "$ACTION")"
+[[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || die "--ref contains unexpected characters: $(printf '%q' "$REF")"
 for b in ${BRANCHES[@]+"${BRANCHES[@]}"}; do
-  git check-ref-format --branch "$b" >/dev/null 2>&1 || die "not a valid branch name: $b"
+  [[ "$b" =~ ^[A-Za-z0-9._/-]+$ ]] || die "branch name has characters other than letters, digits and . _ / - : $(printf '%q' "$b")"
+  git check-ref-format --branch "$b" >/dev/null 2>&1 || die "not a valid branch name: $(printf '%q' "$b")"
   # The output branches and the setup branch are never source branches.
   case "$b" in bites/*|bites-setup) die "refusing to mirror $b" ;; esac
 done
@@ -137,6 +141,19 @@ push() { # push SRC DEST - every write to the remote goes through here, so --dry
   if [ "$DRY" = 1 ]; then echo "[dry-run] git push origin $1:$2"; else git push --quiet origin "$1:$2"; fi
 }
 
+# remote_has_branch BRANCH - exit status 0 if the remote has the branch, 1 if it does not.
+# If the remote cannot be asked at all (network, credentials), say so and stop, instead of
+# reporting the branch as missing. `git ls-remote --exit-code` exits 2 for "no match".
+remote_has_branch() {
+  local rc=0
+  git ls-remote --exit-code --heads origin "refs/heads/$1" >/dev/null 2>"$TMP/lsr.err" || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    2) return 1 ;;
+    *) die "could not ask the remote about branch $(printf '%q' "$1") (git exit status $rc): $(head -n 1 "$TMP/lsr.err")" ;;
+  esac
+}
+
 # ---- 1. the caller workflow on the default branch -------------------------------------
 sed -e "s#__ACTION__#$ACTION#g" -e "s#__REF__#$REF#g" "$TEMPLATE" > "$TMP/bites.yml"
 WF=".github/workflows/bites.yml"
@@ -170,8 +187,8 @@ fi
 # "orphan" root with no files, which is what the first build expects to find.
 EMPTY="$(git mktree </dev/null)"
 for b in "${BRANCHES[@]}"; do
-  git ls-remote --exit-code --heads origin "refs/heads/$b" >/dev/null 2>&1 || die "source branch $b does not exist on the remote"
-  if git ls-remote --exit-code --heads origin "refs/heads/bites/$b" >/dev/null 2>&1; then
+  remote_has_branch "$b" || die "source branch $(printf '%q' "$b") does not exist on the remote"
+  if remote_has_branch "bites/$b"; then
     note "bites/$b already exists"
   else
     c="$(git "${ID[@]}" commit-tree "$EMPTY" -m "bites: init")"

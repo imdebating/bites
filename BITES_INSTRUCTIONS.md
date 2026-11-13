@@ -143,7 +143,10 @@ Rules:
 4. `status: "ok"`: compare `patches[].lines_added` and `lines_removed` with what you
    intended, check `changed[F].chars_before` and `chars_after` for the file (the difference
    should match the size of your edit), then read the edited region back from the new parts.
-   If `truncated_report` is true, only the first 20 patch records are listed.
+   If `truncated_report` is true, only the first 20 patch records are listed, and `changed`
+   and `removed` may be cut short too (`changed_total` and `removed_total` give the full
+   counts); if F is missing from `changed`, rely on the manifest instead: its `blob_sha`
+   for F must match the directory listing, and the edited region must read back correctly.
 5. `status: "error"`: `stage` and `message` say what failed (BASE mismatch, FIND matched 0
    or 2 times, a part over the cap, and so on). The patch file is still in
    `.bites-patches/`, and it blocks every later build on that branch. List `.bites-patches/`
