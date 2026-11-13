@@ -10,14 +10,22 @@
 #                    an exact tag, or a full commit SHA
 #   --action O/R     repository that holds the action (default: imdebating/bites)
 #   --ssh            clone and push over SSH instead of HTTPS
-#   --url URL        clone from this URL instead (used by the tests)
 #   --pr             push the workflow to a branch named bites-setup instead of the
 #                    default branch (for protected default branches); open a pull request
 #                    by hand, or automatically if the gh CLI is installed
 #   --dry-run        show what would be done; change nothing on the remote
+#   --no-preflight   skip the check that the action repository and --ref can be reached
+#   --url URL        clone the target from this URL instead (used by the tests; it also
+#                    turns the preflight check off unless --action-url is given)
+#   --action-url URL where the preflight check looks for the action (default:
+#                    https://github.com/O/R.git for --action O/R; used by the tests)
 #   -h, --help       show this text
 #
 # What it does:
+#   0. preflight: checks, anonymously (as a workflow in another repository would see it),
+#      that the action repository is reachable and has the tag, branch or commit given by
+#      --ref. Problems are warnings, not errors, because a private action repository can
+#      be shared with private repositories through its Actions access setting.
 #   1. clones OWNER/REPO into a temporary directory
 #   2. writes .github/workflows/bites.yml (from templates/bites.yml) on the default branch,
 #      commits and pushes it if it differs from what is there
@@ -37,19 +45,21 @@ die()  { echo "error: $*" >&2; exit 1; }
 note() { echo "==> $*"; }
 warn() { echo "warning: $*" >&2; }
 
-REF="v1"; ACTION="imdebating/bites"; PROTO="https"; URL=""; PR=0; DRY=0
+REF="v1"; ACTION="imdebating/bites"; PROTO="https"; URL=""; ACTION_URL=""; PREFLIGHT=1; PR=0; DRY=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --ref)     [ $# -ge 2 ] || die "--ref needs a value"; REF="$2"; shift 2 ;;
-    --action)  [ $# -ge 2 ] || die "--action needs a value"; ACTION="$2"; shift 2 ;;
-    --url)     [ $# -ge 2 ] || die "--url needs a value"; URL="$2"; shift 2 ;;
-    --ssh)     PROTO="ssh"; shift ;;
-    --pr)      PR=1; shift ;;
-    --dry-run) DRY=1; shift ;;
-    -h|--help) usage; exit 0 ;;
-    --)        shift; break ;;
-    -*)        usage >&2; die "unknown option: $1" ;;
-    *)         break ;;
+    --ref)          [ $# -ge 2 ] || die "--ref needs a value"; REF="$2"; shift 2 ;;
+    --action)       [ $# -ge 2 ] || die "--action needs a value"; ACTION="$2"; shift 2 ;;
+    --url)          [ $# -ge 2 ] || die "--url needs a value"; URL="$2"; shift 2 ;;
+    --action-url)   [ $# -ge 2 ] || die "--action-url needs a value"; ACTION_URL="$2"; shift 2 ;;
+    --no-preflight) PREFLIGHT=0; shift ;;
+    --ssh)          PROTO="ssh"; shift ;;
+    --pr)           PR=1; shift ;;
+    --dry-run)      DRY=1; shift ;;
+    -h|--help)      usage; exit 0 ;;
+    --)             shift; break ;;
+    -*)             usage >&2; die "unknown option: $1" ;;
+    *)              break ;;
   esac
 done
 [ $# -ge 1 ] || { usage >&2; exit 2; }
@@ -71,9 +81,39 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="$HERE/../templates/bites.yml"
 [ -f "$TEMPLATE" ] || die "template not found: $TEMPLATE"
 
+# --url replaces the normal GitHub flow (the tests use it), so the preflight check, which
+# talks to github.com, is skipped unless --action-url says where to look instead.
+if [ -n "$URL" ] && [ -z "$ACTION_URL" ]; then PREFLIGHT=0; fi
+
 if [ -z "$URL" ]; then
   if [ "$PROTO" = "ssh" ]; then URL="git@github.com:$TARGET.git"; else URL="https://github.com/$TARGET.git"; fi
 fi
+
+# ---- 0. preflight: can a workflow in another repository use the action? ---------------
+# Warnings only. The check ignores the user's git configuration (credential helpers, URL
+# rewrites, SSH keys), so it sees what an anonymous client sees: a private action
+# repository fails it, which is exactly what makes workflows fail with "repository not
+# found". `git ls-remote --exit-code` exits 2 when the repository is reachable but nothing
+# matches, and 128 when it cannot be reached. A full commit SHA cannot be looked up by
+# name, so for a SHA only reachability is checked.
+preflight() {
+  local url="${ACTION_URL:-https://github.com/$ACTION.git}" rc=0
+  local -a patterns=()
+  if [[ ! "$REF" =~ ^[0-9a-f]{40}$ ]]; then patterns=("refs/tags/$REF" "refs/heads/$REF"); fi
+  HOME=/nonexistent XDG_CONFIG_HOME=/nonexistent GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    GIT_TERMINAL_PROMPT=0 \
+    git ls-remote --exit-code "$url" ${patterns[@]+"${patterns[@]}"} >/dev/null 2>&1 || rc=$?
+  case "$rc" in
+    0) ;;
+    2) warn "$ACTION has no tag or branch named '$REF'."
+       warn "Workflows that use $ACTION@$REF will fail with 'Unable to resolve action' until it exists." ;;
+    *) warn "cannot reach $url without credentials."
+       warn "If $ACTION is private or misspelled, workflows in $TARGET will fail with 'repository not found'."
+       warn "A public project needs a public action repository. A private project can use a private one only if"
+       warn "its Settings > Actions > General > Access allows it. Use --no-preflight to skip this check." ;;
+  esac
+}
+if [ "$PREFLIGHT" = 1 ]; then preflight; fi
 
 # Work in a throw-away clone so the caller's own checkouts are never touched.
 TMP="$(mktemp -d)"
