@@ -114,8 +114,9 @@ It installs the workflow on the default branch, creates `bites/main` and `bites/
 warns about a listed branch that lacks the workflow. Before it changes anything, it checks without your credentials that
 the action repository and the version you ask for can be reached, and prints a warning (it does not stop) if not.
 Options: `--ref` (version the workflow uses), `--action OWNER/REPO` (take the action from another repository, such as a
-fork), `--ssh`, `--pr` (push the workflow to a branch for a pull request instead of the default branch), `--dry-run`,
-and `--no-preflight` (skip the reachability check). See `--help`.
+fork), `--set KEY=VALUE` (put a setting into the workflow, see [Configuration](#configuration)), `--ssh`, `--pr` (push
+the workflow to a branch for a pull request instead of the default branch), `--dry-run`, and `--no-preflight` (skip the
+reachability check). See `--help`.
 
 ## What is on the mirror branch
 
@@ -136,14 +137,15 @@ bites/main
 - Each part is a header line, the body, and a footer line, so a truncated read is detectable:
   `<<<BITE file=... part=2/3 chars=27000 start_line=412 sha256=... >>>` ... `<<<END BITE 2/3>>>`.
 - `manifest.json` lists each chunked file with its git blob SHA, size, SHA-256, part count and the first line of each
-  part. `last_build.json` has `status` (`ok` or `error`), the source commit, which files changed, and any patch results.
+  part, and records the `max_chars` in use. `last_build.json` has `status` (`ok` or `error`), the source commit, which
+  files changed, and any patch results.
 - Builds are incremental: a file is re-split only when its git blob changes.
 - If a build fails, the previous parts stay as they were and only `last_build.json` is updated with the error.
 
 Which files are mirrored is set by `include` and `exclude` globs. By default: `.md`, `.txt`, `.rst`, `.py`, `.js`, `.ts`,
 `.go`, `.rs`, `.java`, `.c`, `.h`, `.sh`, `.sql`, `.html`, `.css`, `.xml`, `.json`, `.yml`, `.yaml`, `.toml`, `.ini`,
-`.cfg`, `.conf` and `.csv`, excluding `.github/`, `.git/`, `.bites-patches/`, `node_modules/` and `bites.toml`.
-`.env*`, `*.pem`, `*.key` and `id_rsa*` are never mirrored, whatever the configuration says.
+`.cfg`, `.conf` and `.csv`, excluding `node_modules/`. Git internals, `.github/`, `.bites-patches/` and `bites.toml` are
+never mirrored, and neither are `.env*`, `*.pem`, `*.key` and `id_rsa*`, whatever the configuration says.
 
 ## Editing large files with patches
 
@@ -167,31 +169,56 @@ docstring.
 
 ## Configuration
 
-To change the defaults, commit a `bites.toml` to the root of a branch. It needs only the settings you want to change:
-anything it leaves out keeps the default from this repository's `bites.toml`. The action reads the copy on the branch
-being built, so each branch can differ. A given `include` or `exclude` list replaces the default list rather than adding
-to it, so if you replace `exclude`, keep `.github/**`, `.git/**` and `.bites-patches/**` in it. For example, a
-`bites.toml` containing only `include = ["**/*.md", "**/*.py"]` mirrors just those two kinds of file.
+Four settings are meant to be changed:
 
-| Setting | Default | Meaning |
-|---|---|---|
-| `max_chars` | 27000 | No-chunk threshold and maximum part body, in characters (Unicode code points, not bytes) |
-| `read_cap` | 28000 | The connector's per-result limit; the build fails if a part plus the wrapper would exceed it |
-| `wrapper_chars` | 82 | Characters the connector adds in front of the content |
-| `manifest_max_chars` | `max_chars` | Limit for `manifest.json` and `last_build.json`; the build fails rather than let them be cut off |
-| `include`, `exclude` | see above | Glob lists (`*` within a directory, `**/` across directories) |
+| Setting | Workflow input | Default | Meaning |
+|---|---|---|---|
+| `max_chars` | `max-chars` | 27000 | No-chunk threshold and maximum part body, in characters (Unicode code points, not bytes) |
+| `read_cap` | `read-cap` | 28000 | The connector's per-result limit; the build fails if a part plus the connector's wrapper would exceed it |
+| `include` | `include` | the extensions listed above | Globs of the files to mirror (`*` within a directory, `**/` across directories) |
+| `exclude` | `exclude` | `**/node_modules/**` | Globs of files to leave out |
+
+There are two places to set them. A workflow input wins over a `bites.toml`, which wins over the defaults.
+
+**In the workflow.** Add the inputs under `with:` in `.github/workflows/bites.yml`. They apply to every branch. Lists take
+one glob per line; blank lines and lines starting with `#` are ignored:
+
+```yaml
+      - uses: imdebating/bites@v1
+        with:
+          full: ${{ inputs.full || false }}
+          max-chars: 20000
+          include: |
+            **/*.md
+            **/*.py
+```
+
+The bootstrap script writes the same lines for you and keeps them when you run it again: `scripts/bootstrap.sh --set
+max_chars=20000 --set include='**/*.md' --set include='**/*.py' OWNER/REPO main`. Repeat `--set include=` and `--set
+exclude=` once per glob. If the installed workflow already has such settings and you run the script without `--set`, it
+stops instead of removing them.
+
+**In a `bites.toml`.** Commit one to the root of a branch when that branch needs different settings. It needs only the
+keys you want to change; anything it leaves out keeps the default from this repository's `bites.toml`. The action reads
+the copy on the branch being built. For example, a `bites.toml` containing only `max_chars = 15000` is complete.
+
+A given `include` or `exclude` list replaces the default list rather than adding to it. `.git/`, `.github/`,
+`.bites-patches/` and `bites.toml` itself are always left out, so there is no need to list them. Changing `max_chars`
+makes the next build re-split every large file.
 
 The defaults were measured for one chat client. Yours will differ, so measure before relying on them: commit a text file
-with numbered lines, ask the assistant to read it, and note where it is cut. Set `read_cap` to that size,
-`wrapper_chars` to what the client adds, and `max_chars` a little lower (the defaults leave roughly 700 characters of
-headroom for the part header and footer). A client that limits by tokens rather than characters needs a conservative
-character estimate.
+with numbered lines, ask the assistant to read it, and note where it is cut. Set `read_cap` to that size and `max_chars`
+about 1,000 characters lower (the defaults leave roughly 700 characters of headroom for the part header, the footer and
+the connector's own wrapper line). A client that limits by tokens rather than characters needs a conservative character
+estimate. A build warns if `max_chars` leaves too little room under `read_cap`, and verification fails the build if a
+part really is too big.
 
 ## Inputs and permissions
 
 | Action | Input | Default | Meaning |
 |---|---|---|---|
 | `imdebating/bites` | `full` | `false` | `true` rebuilds and re-splits every large file |
+| `imdebating/bites` | `max-chars`, `read-cap`, `include`, `exclude` | empty | Override the settings above; empty keeps the value from `bites.toml` or the default |
 | `imdebating/bites/cleanup` | `dry-run` | `false` | `true` only logs what it would delete |
 
 Both need the calling job to grant `permissions: contents: write`. Set it in the workflow, as above.
@@ -235,10 +262,10 @@ A mirror holds only derived data, so deleting one is cheap: recreate the branch 
 ## Limitations
 
 - UTF-8 text only. Other files are listed under `skipped` in the manifest.
-- A branch's `manifest.json` must fit in one read (`manifest_max_chars`, default 27,000 characters). Each mirrored file
-  takes roughly 350 characters of it, so with the defaults a branch holds about 70 to 80 large files. Beyond that the
-  build fails with an error naming the limit instead of publishing a cut-off manifest; narrow `include` and `exclude` if
-  you reach it.
+- A branch's `manifest.json` must fit in one read, which limits it to about as many characters as `max_chars` (27,000 by
+  default). Each mirrored file takes roughly 350 characters of it, so with the defaults a branch holds about 70 to 80
+  large files, and a smaller `max_chars` lowers that number in proportion. Beyond the limit the build fails with an error
+  naming it instead of publishing a cut-off manifest; narrow `include` and `exclude` if you reach it.
 - Reading a large file takes several tool calls (one per part), and an assistant must follow the procedure in
   `BITES_INSTRUCTIONS.md`; there is no enforcement on the assistant's side.
 - The mirror lags the source by the build time, so assistants should check freshness (the instructions explain how).
@@ -253,8 +280,10 @@ A mirror holds only derived data, so deleting one is cheap: recreate the branch 
 | The run finishes in seconds and changes nothing | There is no `bites/<branch>` branch. Create it (step 2). |
 | "Unable to resolve action ... repository not found" | The action repository is private or its Access setting does not allow your repository; or the tag in your workflow does not exist; or an organization allowlist blocks it. |
 | `bootstrap.sh` warns "cannot reach" or "no tag or branch named ..." | The action repository is private or misspelled, or it has no such tag, so workflows in your repository would fail with the error above. Correct `--action` or `--ref`, make the action repository public (or share it through its Access setting), or pass `--no-preflight` to skip the check. |
+| `bootstrap.sh` stops with "would remove" | The installed workflow has `max-chars`, `read-cap`, `include` or `exclude` lines that this run would delete. Run it again with the same `--set` options, or delete those lines first. |
 | Push rejected, "protected branch" or "permission denied" | The source branch is protected (allow `github-actions[bot]`), or an organization policy caps the workflow token to read-only. |
-| `last_build.json` says `"status": "error"` | `stage` and `message` name the failure (`apply`: a patch was rejected; `build`: for example a manifest over its limit; `verify`: a part did not match its source). Previous parts are left untouched. A rejected patch file stays in `.bites-patches/` and blocks later builds until it is fixed or deleted. |
+| `last_build.json` says `"status": "error"` | `stage` and `message` name the failure (`apply`: a patch was rejected; `build`: for example a manifest over its limit; `verify`: a part did not match its source or is over `read_cap`). Previous parts are left untouched. A rejected patch file stays in `.bites-patches/` and blocks later builds until it is fixed or deleted. |
+| The build log warns that `max_chars` leaves too little room | `max_chars` plus the part header, the footer and the connector's wrapper would exceed `read_cap`. Lower `max_chars` to the value the warning gives, or verification will fail. |
 | `source_commit` in `last_build.json` is behind the branch head | The build has not finished yet, or it failed before publishing; check the run in the Actions tab. |
 | A deleted branch's mirror is still there | The workflow on the default branch predates the cleanup job, a rule blocks deleting `bites/**`, or the delete event did not fire. Run `scripts/prune.sh`. |
 | A restored branch no longer builds | Its mirror was deleted with it. Create `bites/<branch>` again. |
@@ -278,7 +307,7 @@ pytest`, then `python -m pytest tests -q`.
 
 ## Versions and releases
 
-Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.1.0`, or a full commit SHA. A breaking
+Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.3.0`, or a full commit SHA. A breaking
 change gets a new major tag. Maintainers: change the code through a pull request, bump `__version__` in
 `bites_tool/__init__.py`, tag the release (`vX.Y.Z`), and move the major tag (`git tag -f v1 && git push -f origin v1`).
 If a release changes `templates/bites.yml`, projects re-run `scripts/bootstrap.sh` to update their workflow.

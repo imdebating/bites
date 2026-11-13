@@ -10,10 +10,11 @@ README, not here.
 ```
 Repository: OWNER/REPO. Working branch: BRANCH.
 
-The GitHub connector cuts any single result at about 28,000 characters, so large text files
-cannot be read whole. Text files longer than 27,000 characters (except anything under
-.github/ or excluded by the project's bites.toml) are mirrored as exact parts on branch
-bites/BRANCH, and manifest.json on that branch lists exactly which ones. Rules:
+The GitHub connector cuts any single result at a fixed size (about 28,000 characters by
+default), so large text files cannot be read whole. Text files longer than max_chars (27,000
+by default; manifest.json records the value in use), except anything under .github/ or
+excluded by the project's configuration, are mirrored as exact parts on branch bites/BRANCH,
+and manifest.json on that branch lists exactly which ones. Rules:
 
 1. Before reading any such file, read bites/BRANCH: find its head commit H (list_commits,
    perPage 1), then read manifest.json and last_build.json at H (use the sha argument).
@@ -50,8 +51,8 @@ bites/BRANCH, and manifest.json on that branch lists exactly which ones. Rules:
 5. Check each part: header `part=i/n` matches the file name (the header's `file=` is
    URL-quoted, so compare after decoding; the directory under `parts/` uses the plain path),
    footer is `<<<END BITE i/n>>>`, nothing follows the footer, and the text does not end with
-   `...[truncated]`. Every part except the last has `chars=27000` (the default); a shorter
-   one in the middle means something is wrong.
+   `...[truncated]`. Every part except the last has `chars` equal to the manifest's
+   `max_chars` (27000 by default); a shorter one in the middle means something is wrong.
 6. Each body is the `chars` characters that follow the header line. The line break before the
    footer is not part of it: a body that ends with a line break is followed by an empty line
    and then the footer, and one that ends mid-word is followed by that single line break. Join
@@ -60,8 +61,9 @@ bites/BRANCH, and manifest.json on that branch lists exactly which ones. Rules:
 7. To read around line L only: `files[F].start_lines` lists the first line of each part.
    Pick the part whose range contains L, and also its neighbour when L is near a boundary.
 8. If F is not in `files`: read it directly. If the result ends with `...[truncated]`,
-   stop: the file is probably excluded by `bites.toml`, not UTF-8 (see `skipped` in the
-   manifest), or the manifest is stale.
+   stop: the file is probably excluded by the configuration (a `bites.toml` or the workflow's
+   include and exclude settings), not UTF-8 (see `skipped` in the manifest), or the manifest
+   is stale.
 9. If `bites/<BRANCH>` does not exist, the branch is not mirrored. That also happens when its
    mirror was deleted together with the branch, or the branch was restored afterwards. Read
    files directly, and if a result ends with `...[truncated]`, stop and tell the user the
@@ -76,10 +78,10 @@ bites/BRANCH, and manifest.json on that branch lists exactly which ones. Rules:
 
 ## 3. Small files and new files
 
-Files of 27,000 characters or fewer are not mirrored. Read and write them directly with
-`get_file_contents` and `create_or_update_file`. If a file grows past 27,000 characters, the
-next build starts mirroring it and from then on it must be read through its parts and
-edited with patches.
+Files of `max_chars` characters or fewer (27,000 by default; the manifest records the value)
+are not mirrored. Read and write them directly with `get_file_contents` and
+`create_or_update_file`. If a file grows past `max_chars`, the next build starts mirroring it
+and from then on it must be read through its parts and edited with patches.
 
 A brand-new large file is not in the manifest yet, so it may be created in one
 `create_or_update_file` call if the whole content fits in one call. Once the next build has
@@ -90,7 +92,7 @@ better built with the `NEW` and `APPEND` patch operations in pieces (section 4).
 
 Create `.bites-patches/<UTC yyyymmddThhmmssZ>-<slug>.patch` on `<BRANCH>` with
 `create_or_update_file` (a new file needs no sha). Keep each patch file under about
-20,000 characters.
+20,000 characters, or under `max_chars` if that is smaller.
 
 ```
 @@@ FILE path/to/file.md
