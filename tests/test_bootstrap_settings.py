@@ -1,4 +1,5 @@
 """Tests for `bootstrap.sh --set` and the settings placeholder in the workflow template."""
+import re
 import shutil
 from pathlib import Path
 
@@ -10,6 +11,9 @@ SCRIPT = ROOT / "scripts" / "bootstrap.sh"
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
 )
+
+# A line that sets one of the options under `with:` (comment lines never match: they start with #).
+SETTING_LINE = re.compile(r"^\s+(max-chars|read-cap|include|exclude):", re.MULTILINE)
 
 
 def run(bare, env, *extra):
@@ -42,8 +46,7 @@ def test_without_settings_no_placeholder_or_option_remains(tmp_path):
     assert run(bare, env).returncode == 0
     wf = workflow(bare, env)
     assert "__SETTINGS__" not in wf
-    for name in ("max-chars", "read-cap", "include:", "exclude:"):
-        assert name not in wf
+    assert not SETTING_LINE.search(wf)
 
 
 def test_settings_are_written_under_with(tmp_path):
@@ -57,7 +60,7 @@ def test_settings_are_written_under_with(tmp_path):
     assert "          read-cap: 25000\n" in wf
     assert "          include: |\n            **/*.md\n            **/*.py\n" in wf
     assert "          exclude: |\n            docs/**\n" in wf
-    assert wf.index("full:") < wf.index("max-chars:") < wf.index("cleanup:")
+    assert wf.index("full:") < wf.index("          max-chars:") < wf.index("cleanup:")
 
 
 def test_same_settings_again_change_nothing(tmp_path):
