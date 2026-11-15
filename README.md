@@ -34,6 +34,11 @@ It helps if all of these are true:
 It is probably not for you if the assistant can clone the repository and read files from disk, or if your files all fit
 under the limit. Binary and non-UTF-8 files are skipped.
 
+<div align="center">
+<table><tr><td>
+<h3>Truncated reads and silently wrong answers?<br><i>Bites</i> fixes the first so you never get the second.<br>&nbsp;</h3></td></tr></table>
+</div>
+
 ## Quick start
 
 Requirements: GitHub Actions enabled for the repository, and GitHub-hosted Linux runners (the workflow uses
@@ -44,11 +49,6 @@ patch files.
 
     git clone https://github.com/imdebating/bites && cd bites
     scripts/bootstrap.sh OWNER/REPO main feature
-
-<div align="center">
-<table><tr><td>
-<h3>Truncated reads and silently wrong answers?<br><i>Bites</i> fixes the first so you never get the second.<br>&nbsp;</h3></td></tr></table>
-</div>
 
 See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
 
