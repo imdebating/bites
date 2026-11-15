@@ -14,21 +14,11 @@ Chat assistants often read a repository through a GitHub connector that cuts eve
 **bites** fixes that. On every push, it mirrors your large text files onto a separate branch as small, numbered parts that each fit under the limit, plus a manifest the assistant uses to check that it read everything. It can also edit a large file from a small patch, so the file never has to be retyped.
 
 <div align="center">
-  <table style="width: 85%; border: 0px;">
-    <tr style="background-color: #02b9ac;">
-      <td align="center" style="border: 1px solid #02b9ac;">
-        <p style="font-size:xx-large"><img
-          src="assets/paste.gif"
-          width="150"
-        ></p>
-      </td>
-      <td align="center" style="border: 1px solid #02b9ac;">
-        <p style="font-size:x-large; font-weight:600">
-        Stop pasting files into chat.<br> Let your assistant read the whole repository.
-        </p>
-      </td>
-    </tr>
-  </table>
+
+![Never paste code again!](assets/paste.gif "Paste icon surrounded by a red circle with a diagonal line through it")
+
+<h3>Stop pasting files into chat!
+<br>Let your assistant read the whole repository instead<br>&nbsp;</h3>
 </div>
 
 No more copying a file, hitting the size limit, splitting it in two, and explaining which half came first. Point the assistant at your repository, paste the [short instructions](BITES_INSTRUCTIONS.md) once, and it reads each large file part by part and confirms that nothing is missing. Setup is one workflow file, which `scripts/bootstrap.sh` can write for you.
@@ -55,15 +45,10 @@ patch files.
     git clone https://github.com/imdebating/bites && cd bites
     scripts/bootstrap.sh OWNER/REPO main feature
 
-<table>
-  <tr>
-    <td align="center" bgcolor="#1e1e5a">
-      <img width="1000" height="0" alt="">
-      <p style="font-size:x-large; color:#ffffff">Truncated reads and silently wrong answers.<br><b>Bites</b> fixes the first so you never get the second.
-      </p>
-    </td>
-  </tr>
-</table>
+<div align="center">
+<table><tr><td>
+<h3>Truncated reads and silently wrong answers?<br><i>Bites</i> fixes the first so you never get the second.<br>&nbsp;</h3></td></tr></table>
+</div>
 
 See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
 
