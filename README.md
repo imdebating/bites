@@ -59,10 +59,8 @@ patch files.
   <tr>
     <td align="center" bgcolor="#1e1e5a">
       <img width="1000" height="0" alt="">
-      <br>
       <p style="font-size:x-large; color:#ffffff">Truncated reads and silently wrong answers.<br><b>Bites</b> fixes the first so you never get the second.
       </p>
-      <br>
     </td>
   </tr>
 </table>
