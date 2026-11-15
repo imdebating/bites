@@ -5,55 +5,27 @@ against it through its --url option. A private HOME and fixed git identity keep 
 developer's own git configuration out of the results. Run with:
 
     python -m pytest tests -q
+
+The multi-branch behaviour (--all-branches, partial failures, verification, --pr) is in
+test_bootstrap_branches.py.
 """
-import os
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+from gitutil import make_remote, sh
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
+WF = ".github/workflows/bites.yml"
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
 )
 
 
-def sh(args, cwd=None, env=None, check=True):
-    """Run a command with `env` added to the environment; raise with its output if it fails."""
-    e = dict(os.environ)
-    e.update(env or {})
-    r = subprocess.run(args, cwd=cwd, env=e, capture_output=True, text=True)
-    if check and r.returncode != 0:
-        raise AssertionError(f"{args} failed\nstdout:{r.stdout}\nstderr:{r.stderr}")
-    return r
-
-
 @pytest.fixture()
 def remote(tmp_path):
     """Create a bare remote with branches main and dev; return (its path, the git env)."""
-    home = tmp_path / "home"
-    home.mkdir()
-    env = {
-        "HOME": str(home),
-        "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_AUTHOR_NAME": "t",
-        "GIT_AUTHOR_EMAIL": "t@example.com",
-        "GIT_COMMITTER_NAME": "t",
-        "GIT_COMMITTER_EMAIL": "t@example.com",
-    }
-    bare = tmp_path / "remote.git"
-    sh(["git", "init", "--quiet", "--bare", "--initial-branch=main", str(bare)], env=env)
-    seed = tmp_path / "seed"
-    sh(["git", "clone", "--quiet", str(bare), str(seed)], env=env)
-    sh(["git", "checkout", "--quiet", "-b", "main"], cwd=seed, env=env)
-    (seed / "README.md").write_text("hello\n")
-    sh(["git", "add", "."], cwd=seed, env=env)
-    sh(["git", "commit", "--quiet", "-m", "init"], cwd=seed, env=env)
-    sh(["git", "push", "--quiet", "origin", "main"], cwd=seed, env=env)
-    sh(["git", "checkout", "--quiet", "-b", "dev"], cwd=seed, env=env)
-    sh(["git", "push", "--quiet", "origin", "dev"], cwd=seed, env=env)
-    return bare, env
+    return make_remote(tmp_path, branches=("dev",))
 
 
 def refs(bare, env):
@@ -82,7 +54,7 @@ def test_installs_workflow_and_creates_mirror_branches(remote):
     run(bare, env, "owner/repo", "main", "dev")
     r = refs(bare, env)
     assert "bites/main" in r and "bites/dev" in r
-    wf = show(bare, env, "main", ".github/workflows/bites.yml")
+    wf = show(bare, env, "main", WF)
     assert "uses: imdebating/bites@v1" in wf
     assert "__ACTION__" not in wf and "__REF__" not in wf
     assert show(bare, env, "main", "README.md") == "hello\n"
@@ -94,6 +66,17 @@ def test_default_branch_when_none_given(remote):
     run(bare, env, "owner/repo")
     r = refs(bare, env)
     assert "bites/main" in r and "bites/dev" not in r
+
+
+def test_every_selected_branch_gets_the_workflow_without_a_merge(remote):
+    """dev gets its own caller as one new commit on top of its old tip; nothing is merged."""
+    bare, env = remote
+    old_dev = refs(bare, env)["dev"]
+    run(bare, env, "owner/repo", "main", "dev")
+    assert show(bare, env, "dev", WF) == show(bare, env, "main", WF)
+    assert sh(["git", "rev-parse", "dev^"], cwd=bare, env=env).stdout.strip() == old_dev
+    parents = sh(["git", "rev-list", "--parents", "-n", "1", "dev"], cwd=bare, env=env).stdout.split()
+    assert len(parents) == 2
 
 
 def test_second_run_changes_nothing(remote):
@@ -110,33 +93,29 @@ def test_ref_change_updates_the_caller(remote):
     bare, env = remote
     run(bare, env, "owner/repo", "main")
     run(bare, env, "--ref", "v2", "owner/repo", "main")
-    assert "uses: imdebating/bites@v2" in show(bare, env, "main", ".github/workflows/bites.yml")
+    assert "uses: imdebating/bites@v2" in show(bare, env, "main", WF)
 
 
 def test_dry_run_changes_nothing(remote):
-    """--dry-run prints what it would push but leaves the remote untouched."""
+    """--dry-run prints what it would push but leaves the remote untouched, and says it verified nothing."""
     bare, env = remote
     before = refs(bare, env)
     r = run(bare, env, "--dry-run", "owner/repo", "main")
     assert "[dry-run]" in r.stdout
+    assert "nothing was verified" in r.stdout
     assert refs(bare, env) == before
 
 
-def test_pr_mode_leaves_default_branch_alone(remote):
-    """--pr pushes the workflow to bites-setup and does not move the default branch."""
+def test_pr_mode_leaves_default_branch_alone_and_reports_pending(remote):
+    """--pr pushes the workflow to bites-setup, does not move the default branch, and exits 3 (pending)."""
     bare, env = remote
     before = refs(bare, env)["main"]
-    run(bare, env, "--pr", "owner/repo", "main")
-    r = refs(bare, env)
-    assert r["main"] == before
-    assert "bites-setup" in r and "bites/main" in r
-
-
-def test_warns_when_other_branch_lacks_the_workflow(remote):
-    """A listed branch created before the caller existed gets a 'merge main into it' warning."""
-    bare, env = remote
-    r = run(bare, env, "owner/repo", "main", "dev")
-    assert "merge main into it" in r.stderr
+    r = run(bare, env, "--pr", "owner/repo", "main", check=False)
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert "PENDING" in r.stdout
+    got = refs(bare, env)
+    assert got["main"] == before
+    assert "bites-setup" in got and "bites/main" in got
 
 
 def test_rejects_bad_input(remote):

@@ -19,10 +19,12 @@
 #   cleanup  when a branch is deleted: delete that branch's bites/<branch> mirror.
 #
 # Opt-in per branch: nothing is mirrored unless a branch named bites/<branch> exists.
-# A push-triggered run uses the copy of this file in the pushed commit, so a branch must
-# contain this file (create branches after it is on the default branch, or merge the
-# default branch into older ones). A delete-triggered run always uses the copy on the
-# DEFAULT branch, so the cleanup job needs the file on the default branch only.
+# A push-triggered run uses the copy of this file in the pushed commit, so every branch that
+# should build needs its own copy. The bootstrap script adds it to each branch you name (or
+# to all of them with --all-branches), next to the bites/<branch> mirror. A branch created
+# later gets the file when it is created from a branch that has it; otherwise run the
+# bootstrap script again. A delete-triggered run always uses the copy on the DEFAULT branch,
+# so the cleanup job needs the file on the default branch only.
 name: bites
 
 on:

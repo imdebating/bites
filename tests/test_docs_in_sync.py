@@ -41,6 +41,17 @@ def test_configuration_guide_lists_every_default_extension():
         assert f"`{ext}`" in CONFIG_DOC, f"{ext} is in the default include list but not in docs/configuration.md"
 
 
+def test_bootstrap_guide_documents_every_option():
+    """Each option in bootstrap.sh's help (except the two test hooks) is named in docs/bootstrap.md."""
+    script = (ROOT / "scripts" / "bootstrap.sh").read_text(encoding="utf-8")
+    guide = (ROOT / "docs" / "bootstrap.md").read_text(encoding="utf-8")
+    header = script.split("set -euo pipefail", 1)[0]
+    options = set(re.findall(r"^#\s+(--[a-z-]+)", header, re.MULTILINE))
+    assert "--all-branches" in options
+    for option in sorted(options - {"--url", "--action-url"}):
+        assert f"`{option}" in guide, f"{option} is in the bootstrap help but not in docs/bootstrap.md"
+
+
 def test_readme_links_every_guide():
     """Every file in docs/ is reachable from the README."""
     guides = sorted((ROOT / "docs").glob("*.md"))

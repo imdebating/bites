@@ -31,14 +31,18 @@
 
 | Symptom | Likely cause and fix |
 |---|---|
-| A push does not start a build | The pushed branch has no `.github/workflows/bites.yml` (merge the default branch into it), or Actions is disabled. |
-| The run finishes in seconds and changes nothing | There is no `bites/<branch>` branch. Create it (step 2 of the [quick start](../README.md#quick-start)). |
+| A push does not start a build | The pushed branch has no `.github/workflows/bites.yml`: run `scripts/bootstrap.sh OWNER/REPO BRANCH` for it (or with `--all-branches`), which adds the file without merging anything. Or Actions is disabled. |
+| The run finishes in seconds and changes nothing | There is no `bites/<branch>` branch. Run bootstrap for that branch; it creates the mirror. |
 | "Unable to resolve action ... repository not found" | The action repository is private or its Access setting does not allow your repository; or the tag in your workflow does not exist; or an organization allowlist blocks it. |
 | `bootstrap.sh` warns "cannot reach" or "no tag or branch named ..." | The action repository is private or misspelled, or it has no such tag, so workflows in your repository would fail with the error above. Correct `--action` or `--ref`, make the action repository public (or share it through its Access setting), or pass `--no-preflight` to skip the check. |
 | `bootstrap.sh` stops with "would remove" | The installed workflow has `max-chars`, `read-cap`, `include` or `exclude` lines that this run would delete. Run it again with the same `--set` options, or delete those lines first. |
+| `bootstrap.sh` stops with "not a bites workflow" | `.github/workflows/bites.yml` on one of the branches was not written by bootstrap. Move it aside, or merge its jobs by hand, then run bootstrap again. Nothing was changed. |
+| `bootstrap.sh` exits 1 and says INCOMPLETE | A push was refused (protected branch, missing permission) or a branch moved while it ran. The summary names the branch and the reason. Fix it and run the same command again. |
+| `bootstrap.sh` exits 3 (PENDING) | `--pr` opened a pull request. Merge it, then run the same command again to verify. |
+| `bootstrap.sh --all-branches` refuses a branch name | A branch has characters other than letters, digits and `. _ / -`. Nothing was changed; list the other branches by name instead. |
 | Push rejected, "protected branch" or "permission denied" | The source branch is protected (allow `github-actions[bot]`), or an organization policy caps the workflow token to read-only. |
 | `last_build.json` says `"status": "error"` | `stage` and `message` name the failure (`apply`: a patch was rejected; `build`: for example a manifest over its limit; `verify`: a part did not match its source or is over `read_cap`). Previous parts are left untouched. A rejected patch file stays in `.bites-patches/` and blocks later builds until it is fixed or deleted. |
 | The build log warns that `max_chars` leaves too little room | `max_chars` plus the part header, the footer and the connector's wrapper would exceed `read_cap`. Lower `max_chars` to the value the warning gives, or verification will fail. |
 | `source_commit` in `last_build.json` is behind the branch head | The build has not finished yet, or it failed before publishing; check the run in the Actions tab. |
 | A deleted branch's mirror is still there | The workflow on the default branch predates the cleanup job, a rule blocks deleting `bites/**`, or the delete event did not fire. Run `scripts/prune.sh`. |
-| A restored branch no longer builds | Its mirror was deleted with it. Create `bites/<branch>` again. |
+| A restored branch no longer builds | Its mirror was deleted with it. Run bootstrap for the branch again, or create `bites/<branch>` by hand. |

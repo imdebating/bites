@@ -65,7 +65,8 @@ A mirror holds only derived data, so deleting one is cheap: recreate the branch 
   after a pull request merge, the `cleanup` job deletes `bites/<branch>`. It skips tags, the default branch, `bites/*`
   branches, a branch that exists again by the time it runs, and branches that have no mirror.
 - **Restoring a branch.** GitHub's "Restore branch" button on a closed pull request recreates the source branch, but not
-  the mirror: create `bites/<branch>` again (step 2 of the [quick start](../README.md#quick-start)).
+  the mirror: run `scripts/bootstrap.sh OWNER/REPO <branch>` again, or create `bites/<branch>` by hand (step 2 of the
+  [quick start](../README.md#quick-start)).
 - **Sweeping.** `scripts/prune.sh OWNER/REPO` lists mirrors whose source branch no longer exists; add `--delete` to remove
   them. Use it for mirrors orphaned before the cleanup job existed, or if a delete event was missed.
 
@@ -90,7 +91,7 @@ pytest`, then `python -m pytest tests -q`.
 
 ## Versions and releases
 
-Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.3.2`, or a full commit SHA. A breaking
+Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.4.0`, or a full commit SHA. A breaking
 change gets a new major tag. Maintainers: change the code through a pull request, bump `__version__` in
 `bites_tool/__init__.py`, tag the release (`vX.Y.Z`), and move the major tag (`git tag -f v1 && git push -f origin v1`).
 If a release changes `templates/bites.yml`, projects re-run `scripts/bootstrap.sh` to update their workflow.

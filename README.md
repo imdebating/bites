@@ -45,12 +45,13 @@ Requirements: GitHub Actions enabled for the repository, and GitHub-hosted Linux
 `ubuntu-24.04`; other runners are untested). The assistant's token needs read access, and write access if it will push
 patch files.
 
-**Shortcut:** `scripts/bootstrap.sh` does steps 1 and 2 for you, for new or existing repositories, and is safe to repeat:
+**Shortcut:** `scripts/bootstrap.sh` does steps 1 and 2 for you, on every branch you choose, for new or existing repositories, and is safe to repeat:
 
     git clone https://github.com/imdebating/bites && cd bites
     scripts/bootstrap.sh OWNER/REPO main feature
+    scripts/bootstrap.sh --all-branches OWNER/REPO
 
-See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
+Both leave every chosen branch ready to build on its next push, without merging anything. See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
 
 ### 1. Add the workflow to the default branch
 
@@ -95,8 +96,8 @@ jobs:
       - uses: imdebating/bites/cleanup@v1
 ```
 
-A branch needs this file to build on push, so create other branches after it is on the default branch, or merge the
-default branch into older ones. The `delete` trigger always uses the copy on the default branch.
+A branch needs its own copy of this file to build on push, so add it to every branch you want mirrored (bootstrap does
+that for you, as one extra commit per branch). The `delete` trigger always uses the copy on the default branch.
 
 ### 2. Create the mirror branch for each branch you want mirrored
 
@@ -126,7 +127,7 @@ contains the parts. Then give your assistant the instructions in [BITES_INSTRUCT
 | [Limitations, security and troubleshooting](docs/limitations.md) | Known limits, permissions and cost, and fixes for common errors |
 | [BITES_INSTRUCTIONS.md](BITES_INSTRUCTIONS.md) | What to paste into a chat so the assistant reads and edits correctly |
 
-Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.3.2`, or a full commit SHA.
+Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.4.0`, or a full commit SHA.
 
 ## License
 
