@@ -1,8 +1,4 @@
-# bites
-
-<!-- Banner: uncomment once assets/banner.png is committed.
-![bites: big files in, small parts out](assets/banner.png)
--->
+# ![bites: big files in, small parts out](assets/banner.webp)
 
 [![CI](https://github.com/imdebating/bites/actions/workflows/ci.yml/badge.svg)](https://github.com/imdebating/bites/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/github/v/tag/imdebating/bites?sort=semver&label=version)](https://github.com/imdebating/bites/tags)
@@ -13,19 +9,35 @@
 
 ## Does your AI assistant choke on big files?
 
-Chat assistants often read a repository through a GitHub connector that cuts every long result off at a fixed size. In the setup this project was measured on, that size was about 28,000 characters. The assistant gets half a file, cannot tell what is missing, and answers anyway.
+Chat assistants often read a repository through a GitHub connector that cuts every long result off at a fixed size. In our case, that size was about 28,000 characters. The assistant gets half a file, cannot tell what is missing, doesn't warn you about it, and answers anyway.
 
 **bites** fixes that. On every push, it mirrors your large text files onto a separate branch as small, numbered parts that each fit under the limit, plus a manifest the assistant uses to check that it read everything. It can also edit a large file from a small patch, so the file never has to be retyped.
 
-## Stop pasting files into chat. Let your assistant read the whole repo.
+<div align="center">
+  <table style="width: 85%; border: 0px;">
+    <tr style="background-color: #02b9ac;">
+      <td align="center" style="border: 1px solid #02b9ac;">
+        <p style="font-size:xx-large"><img
+          src="assets/paste.gif"
+          width="150"
+        ></p>
+      </td>
+      <td align="center" style="border: 1px solid #02b9ac;">
+        <p style="font-size:x-large; font-weight:600">
+        Stop pasting files into chat.<br> Let your assistant read the whole repository.
+        </p>
+      </td>
+    </tr>
+  </table>
+</div>
 
 No more copying a file, hitting the size limit, splitting it in two, and explaining which half came first. Point the assistant at your repository, paste the [short instructions](BITES_INSTRUCTIONS.md) once, and it reads each large file part by part and confirms that nothing is missing. Setup is one workflow file, which `scripts/bootstrap.sh` can write for you.
 
-## Is this for you?
+## Is Bites for you?
 
 It helps if all of these are true:
 
-- your assistant reaches the repository only through a hosted GitHub connector (no local checkout, no code execution),
+- your assistant reaches the repository only through a hosted GitHub connector such as the [Perplexity App for MacOS](https://perplexity.ai "Perplexity App") (no local checkout, no code execution),
 - the repository has text files longer than the connector's per-result limit, and
 - you want the assistant to read them exactly, and to edit them.
 
@@ -42,6 +54,18 @@ patch files.
 
     git clone https://github.com/imdebating/bites && cd bites
     scripts/bootstrap.sh OWNER/REPO main feature
+
+<table>
+  <tr>
+    <td align="center" bgcolor="#1e1e5a">
+      <img width="1000" height="0" alt="">
+      <br>
+      <p style="font-size:x-large; color:#ffffff">Truncated reads and silently wrong answers.<br><b>Bites</b> fixes the first so you never get the second.
+      </p>
+      <br>
+    </td>
+  </tr>
+</table>
 
 See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
 
@@ -112,7 +136,7 @@ contains the parts. Then give your assistant the instructions in [BITES_INSTRUCT
 ## Documentation
 
 | Guide | What it covers |
-|---|---|
+| - | - |
 | [How it works](docs/how-it-works.md) | The mirror branch, parts and manifest, editing with patches, cleanup, repository layout, releases |
 | [Configuration](docs/configuration.md) | `max_chars`, `read_cap`, `include`, `exclude`, workflow inputs, `bites.toml`, precedence |
 | [Bootstrap and repository settings](docs/bootstrap.md) | `scripts/bootstrap.sh` options and the repository settings the action needs |
