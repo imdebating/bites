@@ -22,10 +22,12 @@
 #                    or delete them from the workflow first).
 #   --ssh            clone and push over SSH instead of HTTPS
 #   --pr             for a protected default branch: push the workflow to a branch named
-#                    bites-setup and open a pull request (automatically if the gh CLI is
-#                    installed). Only the default branch can be set up this way, and setup is
-#                    PENDING (exit status 3) until the pull request is merged and the command
-#                    is run again.
+#                    bites-setup (one commit that adds only the workflow file) and make sure a
+#                    pull request from it into the default branch is open: with the gh CLI it
+#                    opens one if none is open, without it the script prints the link. A
+#                    bites-setup branch that holds anything else is replaced. Only the default
+#                    branch can be set up this way, and setup is PENDING (exit status 3) until
+#                    the pull request is merged and the command is run again.
 #   --dry-run        show what would be done; change nothing on the remote
 #   --no-preflight   skip the check that the action repository and --ref can be reached
 #   --url URL        clone the target from this URL instead (used by the tests; it also
@@ -50,7 +52,7 @@
 #   5. fetches the remote again and checks that every workflow and mirror is really there
 #   6. prints one line per branch and reports success only if all of them are ready
 # It never edits existing source files, never force-pushes a source branch, and never touches
-# an existing bites/* branch.
+# an existing bites/* branch. Only the reserved bites-setup branch (--pr) is ever replaced.
 # Re-running with a different --ref is how a project's pinned version is changed.
 #
 # Exit status: 0 setup complete and verified (or --dry-run); 1 an error, or setup incomplete
@@ -316,6 +318,41 @@ for b in "${SEL[@]}"; do
 done
 
 # ---- 4. the caller workflow on each branch ---------------------------------------------------
+# setup_branch_is_exact BRANCH - true if merging origin/bites-setup into origin/BRANCH would change
+# exactly one file, the generated workflow (mode 100644, expected content), and nothing else. The
+# three-dot diff compares against the merge base, so it still works after BRANCH has moved on, and
+# it looks at the net result, so a file that was added and removed again does not count.
+setup_branch_is_exact() {
+  local b="$1" changes
+  changes="$(git diff --raw --no-renames "origin/$b...origin/bites-setup" 2>/dev/null)" || return 1
+  [ -n "$changes" ] || return 1
+  printf '%s\n' "$changes" | awk -F'\t' -v wf="$WF" '
+    { split($1, a, " "); ok = (a[2] == "100644" && $2 == wf) }
+    END { exit !(NR == 1 && ok) }' || return 1
+  git show "origin/bites-setup:$WF" 2>/dev/null | cmp -s - "$TMP/bites.yml"
+}
+
+# ensure_pull_request BRANCH - make sure a pull request from bites-setup into BRANCH is open, or
+# say how to open one. The pull request is always bites-setup into the default branch.
+ensure_pull_request() {
+  local b="$1" n="" url="https://github.com/$TARGET/compare/$b...bites-setup?expand=1"
+  if [ "$DRY" = 0 ] && command -v gh >/dev/null 2>&1; then
+    n="$(gh pr list --repo "$TARGET" --head bites-setup --base "$b" --state open --json number --jq length 2>/dev/null)" || n=""
+    case "$n" in
+      0)      note "no open pull request from bites-setup; opening one"
+              gh pr create --repo "$TARGET" --base "$b" --head bites-setup \
+                --title "Add bites caller workflow" \
+                --body "Installed by bites bootstrap ($ACTION@$REF). The diff should show one added file, $WF." \
+                || warn "gh pr create failed; open the pull request by hand: $url" ;;
+      [1-9]*) note "an open pull request from bites-setup into $b exists; merge it" ;;
+      *)      warn "could not ask gh about pull requests; find or open one by hand: $url" ;;
+    esac
+  else
+    note "open a pull request from bites-setup into $b if there is none: $url"
+  fi
+  note "before merging, check that the pull request's diff shows only $WF"
+}
+
 install_workflow() { # install_workflow BRANCH - one new commit on top of origin/BRANCH
   local b="$1" parent idx blob tree commit old=""
   parent="$(git rev-parse "origin/$b^{commit}")"
@@ -333,20 +370,18 @@ install_workflow() { # install_workflow BRANCH - one new commit on top of origin
   if [ "$PR" = 1 ]; then
     # The pull request path: the commit goes to the reserved bites-setup branch instead.
     if git rev-parse --verify -q "origin/bites-setup^{commit}" >/dev/null; then
-      if git show "origin/bites-setup:$WF" 2>/dev/null | cmp -s - "$TMP/bites.yml"; then
-        note "bites-setup already holds the workflow; merge its pull request"
+      if setup_branch_is_exact "$b"; then
+        note "bites-setup already holds exactly the workflow"
+        ensure_pull_request "$b"
         set_state "workflow:$b" pending "merge the pull request from bites-setup into $b"
         return 0
       fi
       old="$(git rev-parse "origin/bites-setup")"
+      note "bites-setup holds something other than the expected workflow; replacing it"
     fi
     note "pushing bites-setup (open a pull request into $b)"
     if push "$commit" "refs/heads/bites-setup" "$old"; then
-      if [ "$DRY" = 0 ] && command -v gh >/dev/null 2>&1; then
-        gh pr create --repo "$TARGET" --base "$b" --head bites-setup \
-          --title "Add bites caller workflow" --body "Installed by bites bootstrap ($ACTION@$REF)." \
-          || warn "gh pr create failed; open the pull request by hand"
-      fi
+      ensure_pull_request "$b"
       set_state "workflow:$b" pending "merge the pull request from bites-setup into $b"
     else
       set_state "workflow:$b" failed "$(push_error)"
@@ -433,7 +468,7 @@ if [ "$BAD" -gt 0 ]; then
   exit 1
 fi
 if [ "$PENDING" -gt 0 ]; then
-  note "setup is PENDING: merge the bites-setup pull request into $DEFAULT, then run the same command again to verify it (exit status 3)"
+  note "setup is PENDING: merge the bites-setup pull request into $DEFAULT (its diff should show only $WF), then run the same command again to verify it (exit status 3)"
   exit 3
 fi
 note "setup complete and verified on the remote: each branch above builds on its next push"
