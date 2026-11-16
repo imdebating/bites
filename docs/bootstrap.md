@@ -25,8 +25,8 @@ The workflow file lives on each branch that should build, because a push is run 
    `.github/workflows/bites.yml` is a bites workflow whose settings would not be lost. If any check fails, nothing is
    written.
 3. Creates each missing `bites/<branch>`, before the workflow, so the first build already finds its mirror.
-4. Adds the workflow to each branch as one new commit on top of that branch. Nothing is merged, rebased or
-   force-pushed, and no other file changes.
+4. Adds the workflow to each branch as one new commit on top of that branch. Nothing is merged or rebased, no source
+   branch is force-pushed, and no other file changes.
 5. Fetches the remote again and checks that each workflow and mirror is really there.
 6. Prints one line per branch, and reports success only if every branch is ready.
 
@@ -71,11 +71,20 @@ the workflow, so it never builds against a missing mirror.
 
 ## Protected default branch and `--pr`
 
-With `--pr`, the workflow goes to a `bites-setup` branch and a pull request is opened with the `gh` CLI if it is
-installed (otherwise open it by hand). Setup is then pending, with exit status 3. Merge the pull request, then run the same
-command again; it verifies the result and exits 0. `--pr` covers the default branch only, because a pull request cannot add
-the workflow to other branches as well, so bootstrap refuses `--pr` with other branches or `--all-branches` and changes
-nothing. For other protected branches, allow `github-actions[bot]` and your own account to push, or add the file by hand.
+With `--pr`, the workflow goes to a `bites-setup` branch holding one commit that adds only
+`.github/workflows/bites.yml`. Bootstrap then makes sure a pull request from `bites-setup` into the default branch is
+open: with the `gh` CLI it opens one if none is open, and without a usable `gh` it prints the link to open one by hand.
+Setup is then pending, with exit status 3. Merge the pull request (its diff should show that one file), then run the
+same command again; it verifies the result and exits 0.
+
+Bootstrap accepts an existing `bites-setup` only if merging it would change nothing but that one file, with the expected
+content. If the branch holds anything else (extra files, a changed file mode or another version), bootstrap replaces it,
+because the branch is reserved for this. If you closed the pull request, running the command again opens a new one.
+
+`--pr` covers the default branch only, because a pull request cannot add the workflow to other branches as well, so
+bootstrap refuses `--pr` with other branches or `--all-branches` and changes nothing. For other protected branches,
+allow `github-actions[bot]` and your own account to push, or add the workflow file by hand and run the command again to
+verify it.
 
 ## Branches created later
 
