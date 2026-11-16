@@ -51,9 +51,9 @@ patch files.
     scripts/bootstrap.sh OWNER/REPO main feature
     scripts/bootstrap.sh --all-branches OWNER/REPO
 
-Both leave every chosen branch ready to build on its next push, without merging anything. See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
+Both leave every chosen branch ready to build on its next push, without merging anything (your local checkouts only need a normal `git pull`). See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
 
-### 1. Add the workflow to the default branch
+### 1. Add the workflow to each branch you want mirrored
 
 Create `.github/workflows/bites.yml`:
 
