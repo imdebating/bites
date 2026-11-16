@@ -157,6 +157,6 @@ Rules:
    patch.
 6. If nothing changes after the checks in step 2, the workflow may not be running for this
    branch. It only runs when `bites/<BRANCH>` exists, and the branch must contain
-   `.github/workflows/bites.yml` (a branch created from the default branch after the
-   workflow was added has it; merge the default branch into older branches). Tell the
-   user; setting this up is the operator's job.
+   `.github/workflows/bites.yml` (the operator's `scripts/bootstrap.sh OWNER/REPO <BRANCH>`
+   adds it; a branch created later needs that too). Tell the user; setting this up is the
+   operator's job.
