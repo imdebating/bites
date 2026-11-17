@@ -26,6 +26,22 @@ RUNNING
 Standard library only. Requires Python 3.11+ (tomllib) and `git` on PATH.
 """
 
-# Keep in step with the release tag: tag v1.4.0 means __version__ = "1.4.0" (the moving
-# tag v1 follows the latest 1.x release). See docs/how-it-works.md, "Versions and releases".
-__version__ = "1.4.0"
+import re as _re
+from pathlib import Path as _Path
+
+# The version lives in one place: the VERSION file at the repository root, which holds one line
+# such as 1.5.0 and nothing else. The release tag is v plus that number (tag v1.5.0 means VERSION
+# holds 1.5.0), and the moving tag v1 follows the latest 1.x release. scripts/bootstrap.sh reads
+# the same file. See docs/how-it-works.md, "Versions and releases".
+
+
+def _read_version() -> str:
+    """Return the text of the VERSION file, or "unknown" if it is missing or malformed."""
+    try:
+        text = (_Path(__file__).resolve().parent.parent / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return "unknown"
+    return text if _re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", text) else "unknown"
+
+
+__version__ = _read_version()
