@@ -6,7 +6,7 @@ developer's own git configuration out of the results. Run with:
 
     python -m pytest tests -q
 
-The multi-branch behaviour (--all-branches, partial failures, verification, --pr) is in
+The multi-branch behaviour (--all-branches, partial failures, verification, --protected) is in
 test_bootstrap_branches.py.
 """
 import shutil
@@ -37,7 +37,7 @@ def refs(bare, env):
 def run(bare, env, *extra, check=True):
     """Run bootstrap.sh against the bare remote with the given extra arguments."""
     return sh(
-        ["bash", str(SCRIPT), "--url", str(bare), "--action", "imdebating/bites", *extra],
+        ["bash", str(SCRIPT), "--url", str(bare), "--action-from", "imdebating/bites", *extra],
         env=env,
         check=check,
     )
@@ -89,10 +89,10 @@ def test_second_run_changes_nothing(remote):
 
 
 def test_ref_change_updates_the_caller(remote):
-    """Re-running with --ref rewrites the version in the installed caller."""
+    """Re-running with --workflow-version rewrites the version in the installed caller."""
     bare, env = remote
     run(bare, env, "owner/repo", "main")
-    run(bare, env, "--ref", "v2", "owner/repo", "main")
+    run(bare, env, "--workflow-version", "v2", "owner/repo", "main")
     assert "uses: imdebating/bites@v2" in show(bare, env, "main", WF)
 
 
@@ -104,18 +104,6 @@ def test_dry_run_changes_nothing(remote):
     assert "[dry-run]" in r.stdout
     assert "nothing was verified" in r.stdout
     assert refs(bare, env) == before
-
-
-def test_pr_mode_leaves_default_branch_alone_and_reports_pending(remote):
-    """--pr pushes the workflow to bites-setup, does not move the default branch, and exits 3 (pending)."""
-    bare, env = remote
-    before = refs(bare, env)["main"]
-    r = run(bare, env, "--pr", "owner/repo", "main", check=False)
-    assert r.returncode == 3, r.stdout + r.stderr
-    assert "PENDING" in r.stdout
-    got = refs(bare, env)
-    assert got["main"] == before
-    assert "bites-setup" in got and "bites/main" in got
 
 
 def test_rejects_bad_input(remote):

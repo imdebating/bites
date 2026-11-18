@@ -36,7 +36,7 @@ def make_action_repo(tmp_path, env, tag="v1"):
 def run(bare, env, *extra):
     """Run bootstrap.sh against the bare target remote; never fails the test on exit status."""
     return sh(
-        ["bash", str(SCRIPT), "--url", str(bare), "--action", "imdebating/bites", *extra, "owner/repo", "main"],
+        ["bash", str(SCRIPT), "--url", str(bare), "--action-from", "imdebating/bites", *extra, "owner/repo", "main"],
         env=env,
         check=False,
     )
@@ -55,7 +55,7 @@ def test_warns_but_continues_when_tag_is_missing(tmp_path):
     """A missing tag is a warning; the workflow is still installed."""
     bare, env = make_remote(tmp_path)
     action = make_action_repo(tmp_path, env)
-    r = run(bare, env, "--action-url", str(action), "--ref", "v9")
+    r = run(bare, env, "--action-url", str(action), "--workflow-version", "v9")
     assert r.returncode == 0, r.stderr
     assert "no tag or branch named 'v9'" in r.stderr
     wf = sh(["git", "show", "main:.github/workflows/bites.yml"], cwd=bare, env=env).stdout
@@ -74,7 +74,7 @@ def test_commit_sha_ref_only_checks_reachability(tmp_path):
     """A full commit SHA cannot be looked up by name, so it passes whenever the repository is reachable."""
     bare, env = make_remote(tmp_path)
     action = make_action_repo(tmp_path, env)
-    r = run(bare, env, "--action-url", str(action), "--ref", FAKE_SHA)
+    r = run(bare, env, "--action-url", str(action), "--workflow-version", FAKE_SHA)
     assert r.returncode == 0, r.stderr
     assert "no tag or branch" not in r.stderr and "cannot reach" not in r.stderr
 
@@ -91,7 +91,7 @@ def test_url_alone_skips_the_check(tmp_path):
     """With --url and no --action-url the check is off, so the tests never touch github.com."""
     bare, env = make_remote(tmp_path)
     r = sh(
-        ["bash", str(SCRIPT), "--url", str(bare), "--action", "no-such-owner/no-such-repo", "owner/repo", "main"],
+        ["bash", str(SCRIPT), "--url", str(bare), "--action-from", "no-such-owner/no-such-repo", "owner/repo", "main"],
         env=env,
         check=False,
     )

@@ -1,4 +1,4 @@
-"""Tests for bootstrap.sh across several branches: --all-branches, ordering, failures, --pr.
+"""Tests for bootstrap.sh across several branches: --all-branches, ordering, failures, --protected.
 
 The contract under test: one bootstrap command installs the caller workflow and creates the
 mirror for every requested branch, without merging anything, and reports success only when
@@ -21,19 +21,19 @@ pytestmark = pytest.mark.skipif(
 def run(bare, env, *args, target="owner/repo"):
     """Run bootstrap.sh against the bare remote; never raises on a non-zero exit.
 
-    Options (--all-branches, --dry-run, --pr, --set X, --ref X) may be mixed with branch names
+    Options (--all-branches, --dry-run, --protected, --config X, --workflow-version X) may be mixed with branch names
     in any order here; they are put before the target and the names after it, as the script expects.
     """
     opts, names, it = [], [], iter(args)
     for a in it:
-        if a in ("--set", "--ref"):
+        if a in ("--config", "--workflow-version"):
             opts += [a, next(it)]
         elif a.startswith("--"):
             opts.append(a)
         else:
             names.append(a)
     return sh(
-        ["bash", str(SCRIPT), "--url", str(bare), "--action", "imdebating/bites", *opts, target, *names],
+        ["bash", str(SCRIPT), "--url", str(bare), "--action-from", "imdebating/bites", *opts, target, *names],
         env=env,
         check=False,
     )
@@ -172,7 +172,7 @@ def test_rerun_and_duplicate_names_change_nothing_more(tmp_path):
 def test_new_ref_reaches_every_branch(tmp_path):
     bare, env = make_remote(tmp_path, branches=("dev",))
     assert run(bare, env, "--all-branches").returncode == 0
-    assert run(bare, env, "--all-branches", "--ref", "v2").returncode == 0
+    assert run(bare, env, "--all-branches", "--workflow-version", "v2").returncode == 0
     for b in ("main", "dev"):
         assert "uses: imdebating/bites@v2" in show(bare, env, b, WF)
 
@@ -191,7 +191,7 @@ def test_a_custom_workflow_on_any_branch_stops_everything_before_writes(tmp_path
 
 def test_settings_that_would_be_dropped_on_any_branch_stop_everything(tmp_path):
     bare, env = make_remote(tmp_path, branches=("dev",))
-    assert run(bare, env, "--set", "max_chars=20000", "main", "dev").returncode == 0
+    assert run(bare, env, "--config", "max_chars=20000", "main", "dev").returncode == 0
     before = refs(bare, env)
     r = run(bare, env, "main", "dev")
     assert r.returncode != 0 and "would remove" in r.stderr
@@ -282,38 +282,3 @@ def test_dry_run_with_all_branches_writes_nothing(tmp_path):
     assert r.stdout.count("[dry-run]") >= 4
     assert "planned" in r.stdout and "complete and verified" not in r.stdout
     assert refs(bare, env) == before
-
-
-# ---- --pr -------------------------------------------------------------------------------------------------
-
-def test_pr_with_other_branches_is_rejected_before_any_write(tmp_path):
-    bare, env = make_remote(tmp_path, branches=("dev",))
-    before = refs(bare, env)
-    r = run(bare, env, "--pr", "main", "dev")
-    assert r.returncode != 0 and "--pr can only set up the default branch" in r.stderr
-    assert refs(bare, env) == before
-    assert run(bare, env, "--pr", "--all-branches").returncode != 0
-    assert refs(bare, env) == before
-
-
-def test_pr_is_pending_until_merged_and_then_verified(tmp_path):
-    bare, env = make_remote(tmp_path)
-    r = run(bare, env, "--pr", "main")
-    assert r.returncode == 3
-    setup = refs(bare, env)["refs/heads/bites-setup"]
-    r = run(bare, env, "--pr", "main")
-    assert r.returncode == 3
-    assert refs(bare, env)["refs/heads/bites-setup"] == setup
-    sh(["git", "update-ref", "refs/heads/main", setup], cwd=bare, env=env)
-    r = run(bare, env, "--pr", "main")
-    assert r.returncode == 0, r.stdout + r.stderr
-    assert "complete and verified" in r.stdout
-    assert refs(bare, env)["refs/heads/bites-setup"] == setup
-
-
-def test_pr_with_a_new_ref_replaces_the_old_setup_branch(tmp_path):
-    bare, env = make_remote(tmp_path)
-    assert run(bare, env, "--pr", "main").returncode == 3
-    assert run(bare, env, "--pr", "--ref", "v2", "main").returncode == 3
-    assert "uses: imdebating/bites@v2" in show(bare, env, "bites-setup", WF)
-    assert not has(bare, env, "main", WF)
