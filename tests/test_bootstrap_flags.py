@@ -2,14 +2,17 @@
 import os
 import re
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
 from gitutil import make_remote, sh
 
-import bites_tool
-
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+import bites_tool  # noqa: E402
+
 SCRIPT = ROOT / "scripts" / "bootstrap.sh"
 WF = ".github/workflows/bites.yml"
 VALUE_OPTIONS = {"-v", "--workflow-version", "-f", "--action-from", "-c", "--config"}
