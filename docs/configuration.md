@@ -24,14 +24,19 @@ one glob per line; blank lines and lines starting with `#` are ignored:
             **/*.py
 ```
 
-The [bootstrap script](bootstrap.md) writes the same lines for you and keeps them when you run it again: `scripts/bootstrap.sh --set
-max_chars=20000 --set include='**/*.md' --set include='**/*.py' OWNER/REPO main`. Repeat `--set include=` and `--set
-exclude=` once per glob. If the installed workflow already has such settings and you run the script without `--set`, it
-stops instead of removing them.
+The [bootstrap script](bootstrap.md) writes the same lines for you and keeps them when you run it again: `scripts/bootstrap.sh -c
+max_chars=20000 -c include='**/*.md' -c include='**/*.py' OWNER/REPO main`. Repeat `-c include=` and `-c exclude=` once per
+glob. If the installed workflow already has such settings and you run the script without `-c`, it stops instead of
+removing them.
 
 **In a `bites.toml`.** Commit one to the root of a branch when that branch needs different settings. It needs only the
 keys you want to change; anything it leaves out keeps the default from this repository's `bites.toml`. The action reads
 the copy on the branch being built. For example, a `bites.toml` containing only `max_chars = 15000` is complete.
+
+**On the command line.** The tool that the action runs takes the same settings as `-c KEY=VALUE` (long form
+`--config KEY=VALUE`, repeatable) and names its file with `--toml FILE`, for example
+`python -m bites_tool build --toml bites.toml -c max_chars=20000 ...`. `-c toml_file=FILE` names the file too. A `-c`
+setting wins over a `BITES_<KEY>` environment variable, which wins over the file.
 
 A given `include` or `exclude` list replaces the default list rather than adding to it. `.git/`, `.github/`,
 `.bites-patches/` and `bites.toml` itself are always left out, so there is no need to list them. Changing `max_chars`

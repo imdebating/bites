@@ -8,11 +8,11 @@
 # Thin caller. All of the work is done by the shared actions; this file only decides WHEN
 # to run and WHAT the jobs may do. Do not edit the steps. To change the version, change the
 # ref after @ (a moving major tag such as v1, an exact tag, or a full commit SHA), or
-# re-run the bootstrap script with --ref.
+# re-run the bootstrap script with --workflow-version (-v).
 #
 # Optional settings go under `with:` next to `full`: max-chars, read-cap, include and
 # exclude (see the README). They override a bites.toml in the project. Give them to the
-# bootstrap script as --set KEY=VALUE, so that running it again keeps them.
+# bootstrap script as --config KEY=VALUE (-c), so that running it again keeps them.
 #
 # Two jobs:
 #   bites    on every push (and by hand): mirror large files and apply patch files.

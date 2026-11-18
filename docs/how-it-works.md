@@ -78,6 +78,7 @@ A mirror holds only derived data, so deleting one is cheap: recreate the branch 
 | `cleanup/action.yml` | composite action: delete `bites/<branch>` when `<branch>` is deleted |
 | `bites_tool/` | the Python package the build runs: standard library only, Python 3.11+ and `git` |
 | `bites.toml` | default configuration |
+| `VERSION` | the version number on one line; `bites_tool` and `scripts/bootstrap.sh` read it |
 | `templates/bites.yml` | the workflow that `scripts/bootstrap.sh` installs |
 | `scripts/` | `bootstrap.sh` (install), `cleanup.sh` (logic behind the cleanup action), `prune.sh` (sweep orphaned mirrors) |
 | `BITES_INSTRUCTIONS.md` | what to paste into a chat so the assistant reads and edits correctly |
@@ -92,7 +93,8 @@ pytest`, then `python -m pytest tests -q`.
 ## Versions and releases
 
 Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.4.0`, or a full commit SHA. A breaking
-change gets a new major tag. Maintainers: change the code through a pull request, bump `__version__` in
-`bites_tool/__init__.py`, tag the release (`vX.Y.Z`), and move the major tag (`git tag -f v1 && git push -f origin v1`).
+change gets a new major tag. Maintainers: change the code through a pull request, bump the number in the
+`VERSION` file (the one place the version lives; `bites_tool` and `scripts/bootstrap.sh --version` both read it), tag the
+release (`vX.Y.Z`), and move the major tag (`git tag -f v1 && git push -f origin v1`).
 If a release changes `templates/bites.yml`, projects re-run `scripts/bootstrap.sh` to update their workflow.
 Update `BITES_INSTRUCTIONS.md` in the same pull request as any change to what the assistant sees.
