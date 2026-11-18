@@ -66,13 +66,13 @@ def run(*args):
 
 def build(src, cfg, out, *extra, commit="c1"):
     """Run `build` for branch "main" at the given fake commit id."""
-    return run("build", "--config", cfg, "--src", src, "--out", out,
+    return run("build", "--toml", cfg, "--src", src, "--out", out,
                "--source-branch", "main", "--source-commit", commit, *extra)
 
 
 def verify(src, cfg, out):
     """Run `verify` and return its exit code (0 = consistent)."""
-    return run("verify", "--config", cfg, "--src", src, "--out", out)
+    return run("verify", "--toml", cfg, "--src", src, "--out", out)
 
 
 def tree(out):
@@ -272,7 +272,7 @@ def test_manifest_overflow_is_an_error(tmp_path):
     files = {f"dir/file_{i:03d}.md": "x" * 250 for i in range(30)}
     src, cfg, out = make_repo(tmp_path, files, m=100, mm=2000)
     st = tmp_path / "status.json"
-    assert run("build", "--config", cfg, "--src", src, "--out", out, "--status", st) == 1
+    assert run("build", "--toml", cfg, "--src", src, "--out", out, "--status", st) == 1
     assert json.loads(st.read_text())["status"] == "error"
 
 

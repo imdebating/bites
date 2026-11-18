@@ -25,7 +25,7 @@ def build(tmp_path, src, out, manifest_max):
     cfg = tmp_path / "bites.toml"
     cfg.write_text(f"max_chars = 10\nmanifest_max_chars = {manifest_max}\n", encoding="utf-8")
     rc = cli.main([
-        "build", "--config", str(cfg), "--src", str(src), "--out", str(out),
+        "build", "--toml", str(cfg), "--src", str(src), "--out", str(out),
         "--source-branch", "t", "--source-commit", "c",
     ])
     assert rc == 0

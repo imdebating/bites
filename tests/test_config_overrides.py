@@ -79,7 +79,7 @@ def test_build_reads_the_environment_and_the_set_option(tmp_path, monkeypatch):
     git(src, "commit", "-q", "-m", "one")
     cfg = tmp_path / "bites.toml"
     cfg.write_text("", encoding="utf-8")
-    base = ["build", "--config", str(cfg), "--src", str(src), "--source-branch", "t", "--source-commit", "c"]
+    base = ["build", "--toml", str(cfg), "--src", str(src), "--source-branch", "t", "--source-commit", "c"]
 
     # The manifest limit defaults to max_chars, which is far too small for tiny parts, so
     # the test gives it room.
@@ -91,6 +91,6 @@ def test_build_reads_the_environment_and_the_set_option(tmp_path, monkeypatch):
     assert man["max_chars"] == 10 and man["files"]["f.md"]["parts"] == 3
 
     out2 = tmp_path / "out2"
-    assert cli.main([*base, "--out", str(out2), "--set", "max_chars=5"]) == 0
+    assert cli.main([*base, "--out", str(out2), "--config", "max_chars=5"]) == 0
     man = json.loads((out2 / "manifest.json").read_text(encoding="utf-8"))
     assert man["max_chars"] == 5 and man["files"]["f.md"]["parts"] == 5

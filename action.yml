@@ -154,7 +154,7 @@ runs:
       run: |
         FLAG=""
         if [ "$FULL" = "true" ]; then FLAG="--full"; fi
-        python -m bites_tool build --config "$CFG" --src . --out out \
+        python -m bites_tool build --toml "$CFG" --src . --out out \
           --source-branch "$BRANCH" --source-commit "$(git rev-parse HEAD)" \
           --patch-report "$RUNNER_TEMP/patch_report.json" \
           --status "$RUNNER_TEMP/status.json" $FLAG
@@ -170,7 +170,7 @@ runs:
         BITES_INCLUDE: ${{ inputs.include }}
         BITES_EXCLUDE: ${{ inputs.exclude }}
       run: |
-        python -m bites_tool verify --config "$CFG" --src . --out out \
+        python -m bites_tool verify --toml "$CFG" --src . --out out \
           --status "$RUNNER_TEMP/status.json"
 
     # After any failure: throw away uncommitted changes in the bites checkout so the
