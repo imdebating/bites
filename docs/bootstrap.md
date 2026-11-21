@@ -33,9 +33,10 @@ The workflow file lives on each branch that should build, because a push is run 
 
 ## What "complete" means
 
-When bootstrap exits with status 0, every branch you asked for has the workflow and its mirror on the remote. The next
-ordinary commit and push to any of them starts a build. You do nothing else, apart from the normal `git pull` to bring the
-new workflow commit into your local checkouts.
+When bootstrap exits with status 0, every branch you asked for has the workflow and its mirror on the remote. The push
+that adds the workflow also starts a first build on that branch, and the next ordinary commit and push to any of them
+starts another. You do nothing else, apart from the normal `git pull` to bring the new workflow commit into your local
+checkouts.
 
 It cannot see everything. It does not check that Actions is enabled, an organization's allowlist, or what the workflow
 token may do at run time. The first build in the Actions tab is the real test of those.
@@ -106,7 +107,8 @@ Bootstrap accepts an existing `bites-setup/<branch>` only if merging it would ch
 expected content. If the branch holds anything else (extra files, a changed file mode, or another version), bootstrap
 replaces it, because the branch is reserved for this. If you closed the pull request, running the command again opens a
 new one. Version 1.4.0 used a single branch named `bites-setup`. Git cannot hold that name and `bites-setup/<branch>` at
-once, so bootstrap deletes the old branch when it needs the new one.
+once, so bootstrap deletes the old branch when it needs the new one. GitHub closes the pull request that was open from
+the old branch when the branch is deleted.
 
 A dry run cannot tell whether a branch is protected. With `--dry-run --protected`, bootstrap only reports whether `gh`
 was found.

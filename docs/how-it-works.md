@@ -83,7 +83,7 @@ A mirror holds only derived data, so deleting one is cheap: recreate the branch 
 | `scripts/` | `bootstrap.sh` (install), `cleanup.sh` (logic behind the cleanup action), `prune.sh` (sweep orphaned mirrors) |
 | `BITES_INSTRUCTIONS.md` | what to paste into a chat so the assistant reads and edits correctly |
 | `docs/` | the guides linked from the README |
-| `tests/` | test suite; the shell scripts run against local git repositories |
+| `tests/` | test suite; the shell scripts run against local git repositories, and `release_suite.sh` checks a release against real GitHub |
 | `LICENSE` | the MIT license |
 
 Module docstrings describe the part format, manifest layout, patch grammar and exit codes; start with
@@ -97,4 +97,6 @@ change gets a new major tag. Maintainers: change the code through a pull request
 `VERSION` file (the one place the version lives; `bites_tool` and `scripts/bootstrap.sh --version` both read it), tag the
 release (`vX.Y.Z`), and move the major tag (`git tag -f v1 && git push -f origin v1`).
 If a release changes `templates/bites.yml`, projects re-run `scripts/bootstrap.sh` to update their workflow.
+Before tagging, run the release checks against real GitHub with `bash tests/release_suite.sh`; the steps are in
+[tests/RELEASE_TESTING.md](../tests/RELEASE_TESTING.md).
 Update `BITES_INSTRUCTIONS.md` in the same pull request as any change to what the assistant sees.

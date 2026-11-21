@@ -10,8 +10,10 @@
 #                           gh is signed in as.
 #   --public                Create a public repository. The default is private.
 #   --empty                 Create the repository with no commits at all.
-#   --default-branch NAME   Make NAME the default branch (default main).
-#   --delete NAME           Delete the repository. It asks you to type the name first.
+#   --default-branch NAME   Make NAME the default branch (default main). The script reads the
+#                           setting back and stops with an error if GitHub did not keep it.
+#   --delete NAME           Delete the repository. It asks you to type the name first: either
+#                           the bare name or OWNER/NAME is accepted.
 #   --seed-only DIR         Write the seed content into the new directory DIR as a git repository,
 #                           and touch nothing on GitHub. Use it to inspect what would be pushed.
 #
@@ -91,9 +93,9 @@ full=$owner/$name
 
 if [ "$mode" = delete ]; then
   gh repo view "$full" >/dev/null 2>&1 || die "$full does not exist"
-  printf 'Type the repository name to delete %s: ' "$full"
+  printf 'To delete %s, type its name (%s or %s): ' "$full" "$name" "$full"
   read -r answer
-  [ "$answer" = "$name" ] || die "not deleted: the name did not match"
+  [ "$answer" = "$name" ] || [ "$answer" = "$full" ] || die "not deleted: you typed '$answer', which is neither $name nor $full"
   gh repo delete "$full" --yes
   echo "deleted $full"
   exit 0
@@ -110,7 +112,19 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 seed "$work/repo" "$default"
 gh repo create "$full" "$vis" --source "$work/repo" --remote origin
-git -C "$work/repo" push --quiet origin "$default" dev feature/x
-gh repo edit "$full" --default-branch "$default"
+
+# Push the default branch alone first, so GitHub has one branch to choose from, then make sure
+# GitHub's default branch is the one asked for. Pushing every branch at once left some
+# repositories with dev as the default.
+git -C "$work/repo" push --quiet origin "$default"
+tries=0
+while [ "$(gh repo view "$full" --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null)" != "$default" ]; do
+  tries=$((tries + 1))
+  [ "$tries" -le 5 ] || die "the default branch of $full is not $default"
+  gh repo edit "$full" --default-branch "$default" >/dev/null 2>&1 || true
+  sleep 2
+done
+git -C "$work/repo" push --quiet origin dev feature/x
+
 echo "created $full with the branches $default, dev and feature/x"
 echo "next: scripts/bootstrap.sh -v \"\$(git rev-parse HEAD)\" $full"
