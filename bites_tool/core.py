@@ -49,9 +49,9 @@ CONFIGURATION
       1. the defaults built into this module,
       2. a bites.toml (read with the standard-library tomllib): the project's own, if the
          branch has one, otherwise the one shipped with the action,
-      3. overrides: `--set KEY=VALUE` options and BITES_<KEY> environment variables, for
-         example BITES_MAX_CHARS. The action sets the variables from its inputs. `--set`
-         wins over the environment; repeated `--set include=...` / `exclude=...` options
+      3. overrides: `--config KEY=VALUE` options and BITES_<KEY> environment variables, for
+         example BITES_MAX_CHARS. The action sets the variables from its inputs. `--config`
+         wins over the environment; repeated `--config include=...` / `exclude=...` options
          accumulate into one list.
     Every key is optional, so a project's bites.toml can be one line long.
     max_chars            no-chunk threshold and maximum part body        (default 27000)
@@ -180,7 +180,7 @@ def glob_to_re(pat: str) -> re.Pattern:
 
 # ------------------------------------------------------------ configuration
 def parse_setting(key: str, value: str):
-    """Convert the text of one setting (from `--set` or an environment variable).
+    """Convert the text of one setting (from `--config` or an environment variable).
 
     Number settings become `int`. List settings are split into lines; blank lines and
     lines starting with `#` are dropped and the rest are stripped. Raises BitesError for
@@ -207,9 +207,9 @@ def settings_from_env(env=None) -> dict:
 
 
 def collect_overrides(items=(), env=None) -> dict:
-    """Combine environment overrides with `--set KEY=VALUE` items; `--set` wins.
+    """Combine environment overrides with `--config KEY=VALUE` items; `--config` wins.
 
-    Repeating `--set include=...` (or `exclude=...`) adds to that list; the first one
+    Repeating `--config include=...` (or `exclude=...`) adds to that list; the first one
     replaces any list that came from the environment. Raises BitesError for an item that
     is not KEY=VALUE or names an unknown setting.
     """
@@ -219,7 +219,7 @@ def collect_overrides(items=(), env=None) -> dict:
         key, sep, text = item.partition("=")
         key = key.strip()
         if not sep or key not in SETTING_KEYS:
-            raise BitesError(f"--set expects KEY=VALUE, with KEY one of {', '.join(SETTING_KEYS)}: {item!r}")
+            raise BitesError(f"--config expects KEY=VALUE, with KEY one of {', '.join(SETTING_KEYS)}: {item!r}")
         value = parse_setting(key, text)
         out[key] = out[key] + value if key in LIST_KEYS and key in seen else value
         seen.add(key)

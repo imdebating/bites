@@ -42,14 +42,22 @@ def test_configuration_guide_lists_every_default_extension():
 
 
 def test_bootstrap_guide_documents_every_option():
-    """Each option in bootstrap.sh's help (except the two test hooks) is named in docs/bootstrap.md."""
+    """Each option in bootstrap.sh's help (except the two test hooks) is named in docs/bootstrap.md.
+
+    The help lists each option as `-x, --long-name` or, for the few without a short form, `--long-name`.
+    The guide must show every long name as `--long-name` and every short name as `-x`, both in backticks.
+    """
     script = (ROOT / "scripts" / "bootstrap.sh").read_text(encoding="utf-8")
     guide = (ROOT / "docs" / "bootstrap.md").read_text(encoding="utf-8")
     header = script.split("set -euo pipefail", 1)[0]
-    options = set(re.findall(r"^#\s+(--[a-z-]+)", header, re.MULTILINE))
-    assert "--all-branches" in options
+    options = set(re.findall(r"^#\s+(?:-[A-Za-z],\s+)?(--[a-z-]+)", header, re.MULTILINE))
+    shorts = set(re.findall(r"^#\s+(-[A-Za-z]),\s+--", header, re.MULTILINE))
+    assert {"--all-branches", "--protected", "--version"} <= options
+    assert {"-a", "-p", "-V"} <= shorts
     for option in sorted(options - {"--url", "--action-url"}):
         assert f"`{option}" in guide, f"{option} is in the bootstrap help but not in docs/bootstrap.md"
+    for short in sorted(shorts):
+        assert f"`{short}`" in guide, f"{short} is in the bootstrap help but not in docs/bootstrap.md"
 
 
 def test_readme_links_every_guide():

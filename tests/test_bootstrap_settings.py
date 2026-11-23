@@ -1,4 +1,4 @@
-"""Tests for `bootstrap.sh --set` and the settings placeholder in the workflow template."""
+"""Tests for `bootstrap.sh --config` and the settings placeholder in the workflow template."""
 import re
 import shutil
 from pathlib import Path
@@ -19,7 +19,7 @@ SETTING_LINE = re.compile(r"^\s+(max-chars|read-cap|include|exclude):", re.MULTI
 def run(bare, env, *extra):
     """Run bootstrap.sh against the bare remote for owner/repo, mirroring main."""
     return sh(
-        ["bash", str(SCRIPT), "--url", str(bare), "--action", "imdebating/bites", *extra, "owner/repo", "main"],
+        ["bash", str(SCRIPT), "--url", str(bare), "--action-from", "imdebating/bites", *extra, "owner/repo", "main"],
         env=env,
         check=False,
     )
@@ -51,8 +51,8 @@ def test_without_settings_no_placeholder_or_option_remains(tmp_path):
 
 def test_settings_are_written_under_with(tmp_path):
     bare, env = make_remote(tmp_path)
-    r = run(bare, env, "--set", "max_chars=20000", "--set", "read_cap=25000",
-            "--set", "include=**/*.md", "--set", "include=**/*.py", "--set", "exclude=docs/**")
+    r = run(bare, env, "--config", "max_chars=20000", "--config", "read_cap=25000",
+            "--config", "include=**/*.md", "--config", "include=**/*.py", "--config", "exclude=docs/**")
     assert r.returncode == 0, r.stderr
     wf = workflow(bare, env)
     assert "__SETTINGS__" not in wf
@@ -65,23 +65,23 @@ def test_settings_are_written_under_with(tmp_path):
 
 def test_same_settings_again_change_nothing(tmp_path):
     bare, env = make_remote(tmp_path)
-    assert run(bare, env, "--set", "max_chars=20000").returncode == 0
+    assert run(bare, env, "--config", "max_chars=20000").returncode == 0
     before = head(bare, env)
-    assert run(bare, env, "--set", "max_chars=20000").returncode == 0
+    assert run(bare, env, "--config", "max_chars=20000").returncode == 0
     assert head(bare, env) == before
 
 
 def test_changed_settings_update_the_workflow(tmp_path):
     bare, env = make_remote(tmp_path)
-    assert run(bare, env, "--set", "max_chars=20000").returncode == 0
-    assert run(bare, env, "--set", "max_chars=15000").returncode == 0
+    assert run(bare, env, "--config", "max_chars=20000").returncode == 0
+    assert run(bare, env, "--config", "max_chars=15000").returncode == 0
     wf = workflow(bare, env)
     assert "max-chars: 15000" in wf and "max-chars: 20000" not in wf
 
 
 def test_running_again_without_settings_is_refused(tmp_path):
     bare, env = make_remote(tmp_path)
-    assert run(bare, env, "--set", "max_chars=20000").returncode == 0
+    assert run(bare, env, "--config", "max_chars=20000").returncode == 0
     before = head(bare, env)
     r = run(bare, env)
     assert r.returncode != 0
@@ -96,6 +96,6 @@ def test_running_again_without_settings_is_refused(tmp_path):
 ])
 def test_bad_settings_are_rejected_before_anything_changes(tmp_path, bad):
     bare, env = make_remote(tmp_path)
-    r = run(bare, env, "--set", bad)
+    r = run(bare, env, "--config", bad)
     assert r.returncode != 0
     assert branches(bare, env) == {"main"}
