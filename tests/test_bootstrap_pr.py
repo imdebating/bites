@@ -13,6 +13,7 @@ from gitutil import make_remote, sh
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
 WF = ".github/workflows/bites.yml"
+CLI_URL = "https://cli.github.com"
 VALUE_OPTIONS = {"-v", "--workflow-version", "-f", "--action-from", "-c", "--config"}
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
@@ -303,7 +304,7 @@ def test_a_missing_gh_is_explained_with_install_instructions(tmp_path):
     r = run(bare, env_without_gh(tmp_path, env), "-p", "main")
     assert r.returncode == 3, r.stdout + r.stderr
     assert "GitHub CLI (gh) was not found" in r.stdout
-    assert "https://cli.github.com" in r.stdout and "brew install gh" in r.stdout
+    assert CLI_URL in r.stdout and "brew install gh" in r.stdout
     assert "/compare/main...bites-setup/main" in r.stdout
 
 
@@ -317,7 +318,7 @@ def test_a_dry_run_writes_nothing_and_reports_whether_gh_is_installed(tmp_path):
     assert "was found" in r.stdout
     r = run(bare, env_without_gh(tmp_path, env), "--dry-run", "-p", "main")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "was not found" in r.stdout and "https://cli.github.com" in r.stdout
+    assert "was not found" in r.stdout and CLI_URL in r.stdout
     assert refs(bare, env) == before
 
 
