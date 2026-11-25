@@ -44,7 +44,15 @@ runs:
       run: |
         script="$ACTION_PATH/../scripts/cleanup.sh"
         if [ ! -f "$script" ]; then
-          echo "cleanup.sh not found at $script (action path: $ACTION_PATH)" >&2
+          message="cleanup.sh not found at $script (action path: $ACTION_PATH)"
+          printf '%s\n' "$message" >&2
+          # This fallback must work even when the action's helper files are missing.
+          if [ "${GITHUB_ACTIONS:-}" = true ]; then
+            escaped=${message//%/%25}
+            escaped=${escaped//$'\r'/%0D}
+            escaped=${escaped//$'\n'/%0A}
+            printf '::error title=bites cleanup::%s\n' "$escaped" >&2
+          fi
           exit 1
         fi
         exec bash "$script"

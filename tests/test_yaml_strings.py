@@ -68,7 +68,8 @@ def test_cleanup_action():
     assert input_description(CLEANUP, "dry-run") == seen("cleanup_action", "input_dry_run")
     assert step_names(CLEANUP) == [seen("cleanup_action", "step_checkout"), seen("cleanup_action", "step_delete")]
     missing = seen("cleanup_action", "script_not_found").replace("{script}", "$script").replace("{action_path}", "$ACTION_PATH")
-    assert f'echo "{missing}" >&2' in CLEANUP
+    assert f'message="{missing}"' in CLEANUP
+    assert "printf '%s\\n' \"$message\" >&2" in CLEANUP
 
 
 def comment_lines(text):
