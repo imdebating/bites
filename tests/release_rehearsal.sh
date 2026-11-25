@@ -5,7 +5,7 @@
 # usage: bash tests/release_rehearsal.sh [options]
 #
 # It copies the committed code (HEAD of this checkout) into a new private repository named
-# bites-scratch-g, turns on immutable releases there, pushes the code to main, and lets the
+# bites-scratch-release-<uuid>, turns on immutable releases there, pushes the code to main, and lets the
 # release workflow publish the release for the number in VERSION. Then it checks what GitHub
 # holds: the workflow run, the release (published, immutable, titled from the notes, latest),
 # its two files, the tags v<VERSION> and v<MAJOR> on the pushed commit, the downloaded
@@ -104,20 +104,40 @@ checksum_ok() {  # DIR
 assets_are() { [ "$(rel '[.assets[].name] | sort | join(",")')" = "bootstrap.sh,bootstrap.sh.sha256" ]; }
 
 # ---------- the repository ----------
+# Restrict the sourced suite's deletion helper to this invocation's exact repository.
+safe_repo() {
+  [ -n "${REHEARSAL_REPO:-}" ] && [ "$1" = "$REHEARSAL_REPO" ] || return 1
+  case "$1" in
+    "$OWNER"/bites-scratch-release-*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 setup_scratch() {
-  local err
+  local err state attempt=0
   say ""; say "## setup $R"
   safe_repo "$R" || die "refusing to use $R"
-  delete_repo "$R" || return 1
-  bash "$ROOT/tests/scratch_repo.sh" $VIS --empty "$PREFIX-g" >/dev/null || { say "  cannot create $R"; return 1; }
+  # Refuse a collision rather than deleting a repository to make room.
+  bash "$ROOT/tests/scratch_repo.sh" $VIS --empty "${R#*/}" >/dev/null || { say "  cannot create $R"; return 1; }
+  IMMON=0
   if [ "$IMM" = 1 ]; then
-    # A 204 from the PUT is the answer; the release itself is checked for "immutable" in R1.
-    if err=$(gh api -X PUT "repos/$R/immutable-releases" 2>&1); then
-      IMMON=1
-      note "immutable releases are on; GitHub reports: $(gh api "repos/$R/immutable-releases" 2>&1 | tr -d '\n ')"
-    else
-      say "  could not turn on immutable releases on $R: ${err%%$'\n'*}; going on without them"
+    if ! err=$(gh api -X PUT "repos/$R/immutable-releases" 2>&1); then
+      say "  could not enable immutable releases on $R: $err"
+      return 1
     fi
+    # A successful PUT can precede a GET that reflects the new setting.
+    while [ "$attempt" -lt 13 ]; do
+      state=$(gh api "repos/$R/immutable-releases" --jq .enabled 2>&1)
+      if [ "$state" = true ]; then IMMON=1; break; fi
+      attempt=$((attempt + 1))
+      [ "$attempt" -ge 13 ] || sleep 5
+    done
+    if [ "$IMMON" != 1 ]; then
+      say "  immutable releases were not verified after 60 seconds on $R; last GET: $state"
+      say "  setup stopped; use --no-immutable only for an explicitly mutable rehearsal"
+      return 1
+    fi
+    note "immutable releases verified on $R"
   fi
   say "  ready: https://github.com/$R (immutable releases: $([ "$IMMON" = 1 ] && echo on || echo off))"
 }
@@ -215,7 +235,10 @@ main() {
   rehearsal_preflight
   WORK=$(mktemp -d)
   trap 'rm -rf "$WORK"' EXIT
-  R=$OWNER/$PREFIX-g
+  # Immutable-release reservations can survive deletion of a repository.
+  # Keep the version unchanged and give each rehearsal its own repository namespace.
+  R="$OWNER/bites-scratch-release-$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+  REHEARSAL_REPO=$R
   before=$FAILCOUNT
   scenario_publish
   if [ "$(rel .draft)" = false ]; then
