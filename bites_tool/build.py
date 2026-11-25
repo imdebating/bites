@@ -41,6 +41,7 @@ from .core import (
     select_files, sha256_hex, split_parts, write_if_changed,
 )
 from .strings import message
+from .annotations import annotate
 
 
 def cmd_build(a):
@@ -55,6 +56,7 @@ def cmd_build(a):
     cfg = load_config(a.config, collect_overrides(getattr(a, "set", [])))
     for warning in config_warnings(cfg):
         print(message("build", "warning", warning=warning), file=sys.stderr)
+        annotate("warning", warning, title=message("cli", "annotation_title", command="build"))
     M = cfg["max_chars"]
     src, out = Path(a.src), Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

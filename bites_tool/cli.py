@@ -27,6 +27,7 @@ from .build import cmd_build, cmd_reassemble, cmd_report_failure, cmd_verify
 from .core import SCHEMA, BitesError, dumps
 from .patches import cmd_apply
 from .strings import message
+from .annotations import annotate
 
 
 def make_parser():
@@ -130,6 +131,7 @@ def main(argv=None) -> int:
     except Exception as exc:  # noqa: BLE001 - report anything as a failed stage
         msg = message("cli", "unexpected_error", type=type(exc).__name__, message=exc)
     print(message("cli", "error_line", command=a.cmd, message=msg), file=sys.stderr)
+    annotate("error", msg, title=message("cli", "annotation_title", command=a.cmd))
     if getattr(a, "status", None):
         Path(a.status).write_text(
             dumps({"schema": SCHEMA, "status": "error", "stage": a.cmd, "message": msg[:2000]}),

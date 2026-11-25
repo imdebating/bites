@@ -21,7 +21,7 @@ PYTHON_TABLES = {"build", "cli", "core", "patches"}
 
 # Entries that are in the catalog before the code that uses them exists. Remove an entry from
 # this set when its code lands; the test then insists that it is used.
-NOT_USED_YET = {("cli", "annotation_title")}
+NOT_USED_YET = set()
 
 ENTRY = re.compile(r"^# (?P<header>[^\n]*)\n(?P<key>[a-z][a-z0-9_]*) = ", re.MULTILINE)
 PLACEHOLDERS = re.compile(r"placeholders:\s*(?P<names>[a-z0-9_, ]+?)\s*$")
