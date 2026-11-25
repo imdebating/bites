@@ -131,9 +131,9 @@ Running bootstrap for that branch does both.
 - Actions must be enabled.
   If your organization limits Actions to an allowlist, add `imdebating/bites@*`.
 - Do not protect `bites/**` or restrict deletions on it: the workflow pushes to those branches and deletes them.
-- Applied patches are committed straight to the source branch with the workflow's `GITHUB_TOKEN`, and GitHub does not let that token bypass a rule that requires a pull request.
-  On such a branch the push is rejected, the run fails at "Commit applied patches to the source branch", and the patch file stays on the branch and fails every later build until you delete it with a pull request.
-  Use patches only on branches that accept direct pushes; ordinary builds on a protected branch are unaffected.
+- Patches work on branches that accept the workflow's direct pushes. To change a protected branch, apply the patch on an unprotected working branch, wait for the action to commit the edits and remove the patch file, then merge that branch through the normal pull-request process. Bites does not apply patches directly to branches that require pull requests. Bootstrap's `--protected` option installs the workflow through a setup pull request; it does not change this patching limitation.
+  The workflow commits applied patches with its `GITHUB_TOKEN`, and GitHub does not let that token bypass a rule that requires a pull request. On a protected branch the push is rejected, the run fails at "Commit applied patches to the source branch" with `"stage": "commit"` in `last_build.json`, and the patch file stays on the branch and fails every later build until you delete it with a pull request. Ordinary builds on a protected branch are unaffected.
+  Events caused by the workflow's own `GITHUB_TOKEN` do not start new workflow runs, so checks that the protected branch requires may need to be triggered through your normal process for the "bites: apply patches" commit. See [Patches and protected branches](limitations.md#patches-and-protected-branches).
 - Optional: turn on Settings \> General \> Pull Requests \> "Automatically delete head branches" if your branches are short-lived.
   Rulesets and branch protection can stop a branch being deleted.
 - If you fork this repository privately, set the fork's Settings \> Actions \> General \> Access so your other repositories can use it.

@@ -86,6 +86,8 @@ The workflow commits the applied patches to `<BRANCH>` with its own token, and G
 A patch file on such a branch, whether pushed directly or merged in by a pull request, makes the run fail at "Commit applied patches to the source branch" and blocks every later build until the file is deleted, which also needs a pull request.
 Check first: `list_branches` shows a `protected` flag for each branch (rules set up as rulesets may not show in it, so a rejected push of the patch file also means the branch is protected).
 If `<BRANCH>` is protected, tell the user instead of writing the patch; the edit can be made on an unprotected branch and merged afterwards.
+The unprotected branch needs its own output branch and workflow, which the operator creates with `scripts/bootstrap.sh OWNER/REPO <that-branch>`.
+Once the "bites: apply patches" commit is on it and the patch file is gone, the edit can be merged into the protected branch like any other change; never merge a patch file that has not been applied.
 
 Create `.bites-patches/<UTC yyyymmddThhmmssZ>-<slug>.patch` on `<BRANCH>` with `create_or_update_file` (a new file needs no sha).
 Keep each patch file under about 20,000 characters, or under `max_chars` if that is smaller.
@@ -140,10 +142,10 @@ Rules:
    The patch file is still in `.bites-patches/`, and it blocks every later build on that branch.
    List `.bites-patches/` on `<BRANCH>` to get its sha, then fix it with `create_or_update_file` (supply that sha) or remove it with `delete_file`.
    Re-read the file from fresh bites before rewriting the patch.
-6. `status: "error"` with `stage` `unknown` and a message that points to the workflow run log means the failure happened outside the bites tool.
-   A common cause is a protected `<BRANCH>`: the push of the "bites: apply patches" commit was rejected, so `source_commit` names a commit that is not on `<BRANCH>`.
-   Tell the user to read the run log in the Actions tab.
-   The patch file is probably still in `.bites-patches/`, and it blocks every later build until it is deleted.
+6. `status: "error"` with `stage` `commit` means the workflow applied the patches but could not commit and push the "bites: apply patches" commit to `<BRANCH>`, so `source_commit` names a commit that is not on `<BRANCH>`.
+   `message` says why. If it says that `<BRANCH>` requires pull requests, the branch is protected: tell the user.
+   The patch file is still in `.bites-patches/`, and it blocks every later build until it is deleted, which needs a pull request; the edit can be made on an unprotected branch and merged afterwards.
+   A `stage` of `unknown`, with a message that points to the workflow run log, means a failure outside the bites tool that left no record: tell the user to read the run log in the Actions tab.
 7. If nothing changes after the checks in step 2, the workflow may not be running for this branch.
    It only runs when `bites/<BRANCH>` exists, and the branch must contain `.github/workflows/bites.yml` (the operator's `scripts/bootstrap.sh OWNER/REPO <BRANCH>` adds it; a branch created later needs that too).
    Tell the user; setting this up is the operator's job.
