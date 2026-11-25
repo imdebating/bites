@@ -1,12 +1,8 @@
 name: release
 
-# Publishes the GitHub release for the number in VERSION. It runs the tests, builds the one-file
-# bootstrap.sh and its checksum, runs the bootstrap tests against that built file in an empty
-# directory, creates the release as a draft with both files attached, then publishes it (an
-# immutable release cannot get files after it is published), and moves the major tag.
-# It changes nothing if that version is already published.
-# The notes come from .github/release-notes/vX.Y.Z.md, which must be in the commit.
-# It runs when VERSION changes on main, or by hand from the Actions tab on main.
+# Build and test the standalone release files when VERSION changes on main, or by hand.
+# Save both files as a workflow artifact for manual release creation. This workflow does not
+# create or publish releases, require committed release notes, or create or move Git tags.
 on:
   push:
     branches: [main]
@@ -14,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
@@ -47,8 +43,16 @@ jobs:
           cp dist/bootstrap.sh "$RUNNER_TEMP/download/"
           BITES_BOOTSTRAP_SCRIPT="$RUNNER_TEMP/download/bootstrap.sh" python -m pytest tests/test_bootstrap*.py tests/test_preflight.py -q
 
-      - name: Create the draft, attach the files, publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TARGET: ${{ github.sha }}
-        run: python scripts/publish_release.py --target "$TARGET" --move-major-tag dist/bootstrap.sh dist/bootstrap.sh.sha256
+      - name: Verify the checksum
+        run: |
+          cd dist
+          sha256sum -c bootstrap.sh.sha256
+
+      - name: Save the release candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bootstrap-release-candidate
+          path: |
+            dist/bootstrap.sh
+            dist/bootstrap.sh.sha256
+          if-no-files-found: error

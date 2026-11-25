@@ -56,7 +56,10 @@ def test_artifact_errors_match_checkout_and_gate_annotations(artifact, enabled):
 @pytest.mark.parametrize("enabled", ["false", "true"])
 def test_artifact_multiline_warnings_and_dry_run_match_checkout(artifact, tmp_path, enabled):
     bare, env = make_remote(tmp_path)
-    env = {**env, "GITHUB_ACTIONS": enabled}
+    # A dry run prints the id of each commit it would push, and an id depends on the commit time,
+    # so both runs get the same time. Without it the two outputs differ when a second passes between them.
+    moment = "@1767225600 +0000"
+    env = {**env, "GITHUB_ACTIONS": enabled, "GIT_AUTHOR_DATE": moment, "GIT_COMMITTER_DATE": moment}
     before = refs(bare, env)
     args = ("--url", str(bare), "--action-url", str(bare), "--workflow-version", "missing-ref",
             "--dry-run", "owner/repo", "main")
