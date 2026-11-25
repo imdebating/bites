@@ -5,6 +5,7 @@ COMMANDS
     build            write parts, manifest.json and last_build.json into --out
     verify           check the whole output tree against the source tree
     reassemble       write one original file, rebuilt from its parts, to stdout
+    note-failure     record a failure of a step that ran outside the bites tool
     report-failure   convert a failure status file into <out>/last_build.json
 
 SETTINGS
@@ -23,7 +24,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .build import cmd_build, cmd_reassemble, cmd_report_failure, cmd_verify
+from .build import cmd_build, cmd_note_failure, cmd_reassemble, cmd_report_failure, cmd_verify
 from .core import SCHEMA, BitesError, dumps
 from .patches import cmd_apply
 from .strings import message
@@ -85,6 +86,13 @@ def make_parser():
     p.add_argument("--file", required=True, help=message("cli", "help_file"))
     common(p)
     p.set_defaults(func=cmd_reassemble)
+
+    p = sub.add_parser("note-failure", help=message("cli", "help_note_failure"))
+    p.add_argument("--status", required=True, help=message("cli", "help_status"))
+    p.add_argument("--stage", required=True, choices=["commit"], help=message("cli", "help_stage"))
+    p.add_argument("--source-branch", required=True, help=message("cli", "help_failed_branch"))
+    p.add_argument("--detail-file", help=message("cli", "help_detail_file"))
+    p.set_defaults(func=cmd_note_failure)
 
     p = sub.add_parser("report-failure", help=message("cli", "help_report_failure"))
     p.add_argument("--status", required=True)

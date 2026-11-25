@@ -516,6 +516,10 @@ verify_ok = "bites verify: ok, {files} file(s), {bites} bite(s)"
 file_not_segmented = "{file} is not segmented in this manifest"
 # bites_tool/build.py:271 [other]
 failure_see_log = "See the workflow run log"
+# bites_tool/build.py [new: a step that ran outside the bites tool failed]  placeholders: branch, detail
+commit_failed = "The applied patches could not be committed to {branch} (git said: {detail}). The patch file is still in .bites-patches/ and blocks every later build until it is fixed or deleted."
+# bites_tool/build.py [new: the push was refused because the branch requires pull requests]  placeholders: branch, detail
+commit_rejected_protected = "The applied patches could not be pushed to {branch}, because it requires pull requests (git said: {detail}). Patches work only on a branch that accepts direct pushes: delete the patch file with a pull request, apply the patch on another branch, and merge that branch into {branch}."
 
 [cli]
 # bites_tool/cli.py:1 [help (module docstring)]
@@ -552,6 +556,14 @@ help_reassemble = "Write one original file to stdout"
 help_file = "Source path as listed in the manifest"
 # bites_tool/cli.py:88 [help]
 help_report_failure = "Turn a failure status into last_build.json"
+# bites_tool/cli.py [new help]
+help_note_failure = "Record the failure of a step that ran outside the bites tool, for report-failure"
+# bites_tool/cli.py [new help]
+help_stage = "The step that failed"
+# bites_tool/cli.py [new help]
+help_detail_file = "A file holding what the failed step printed"
+# bites_tool/cli.py [new help]
+help_failed_branch = "The branch the failed step pushed to"
 # bites_tool/cli.py:110 [raise]
 toml_file_needs_name = "toml_file needs a file name: -c toml_file=FILE"
 # bites_tool/cli.py:131 [other]  placeholders: message, type

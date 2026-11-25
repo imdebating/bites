@@ -1,4 +1,4 @@
-"""The build, verify, reassemble and report-failure commands.
+"""The build, verify, reassemble, note-failure and report-failure commands.
 
 manifest.json (sorted keys, 2-space indent, no timestamps)
     schema           1
@@ -17,7 +17,7 @@ last_build.json
                      one read: patches are cut to the first 20 and, if that is not
                      enough, changed and removed are cut to their first entries
                      (changed_total and removed_total then give the full counts).
-    status "error":  stage ("apply" | "build" | "verify" | ...), message, plus
+    status "error":  stage ("apply" | "build" | "verify" | "commit" | ...), message, plus
                      source_branch / source_commit. Parts are left untouched on error.
 
 INCREMENTAL BUILDS
@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import sys
 from pathlib import Path
 
@@ -42,6 +43,14 @@ from .core import (
 )
 from .strings import message
 from .annotations import annotate
+
+
+# What git prints when a branch refuses a push because it requires a pull request: GitHub reports
+# branch protection as GH006 and repository rules as GH013. scripts/bootstrap.sh matches the same words.
+PULL_REQUEST_REQUIRED = re.compile(
+    r"GH006|GH013|protected branch|through a pull request|repository rule", re.IGNORECASE
+)
+DETAIL_LINES, DETAIL_CHARS = 3, 500
 
 
 def cmd_build(a):
@@ -272,4 +281,32 @@ def cmd_report_failure(a):
     st["source_branch"] = a.source_branch
     st["source_commit"] = a.source_commit
     write_if_changed(Path(a.out) / "last_build.json", dumps(st).encode("utf-8"))
+    return 0
+
+
+def cmd_note_failure(a):
+    """`note-failure`: write the JSON error record for a step that failed outside the bites tool.
+
+    The action's shell steps (today: committing and pushing the applied patches, stage "commit")
+    cannot write the record that a failing command writes for itself. This command writes it
+    from what the step printed, so that `report-failure` publishes the stage and the reason
+    instead of "unknown". A refusal that means "this branch requires pull requests" gets its own
+    message, because the fix is different: patches cannot be applied to a protected branch.
+    """
+    try:
+        printed = Path(a.detail_file).read_text(encoding="utf-8", errors="replace") if a.detail_file else ""
+    except OSError:
+        printed = ""
+    lines = [line.strip() for line in printed.splitlines() if line.strip()]
+    detail = " ".join(lines[:DETAIL_LINES])[:DETAIL_CHARS] or message("build", "failure_see_log")
+    if PULL_REQUEST_REQUIRED.search(printed):
+        text = message("build", "commit_rejected_protected", branch=a.source_branch, detail=detail)
+    else:
+        text = message("build", "commit_failed", branch=a.source_branch, detail=detail)
+    Path(a.status).write_text(
+        dumps({"schema": SCHEMA, "status": "error", "stage": a.stage, "message": text[:2000]}),
+        encoding="utf-8",
+    )
+    print(message("cli", "error_line", command=a.stage, message=text), file=sys.stderr)
+    annotate("error", text, title=message("cli", "annotation_title", command=a.stage))
     return 0
