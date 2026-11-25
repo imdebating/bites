@@ -108,7 +108,7 @@ def test_an_old_option_name_stops_with_a_pointer_to_the_new_one(tmp_path, old, a
 def test_an_unknown_option_is_rejected(tmp_path):
     bare, env = make_remote(tmp_path)
     r = run(bare, env, "-x", "main")
-    assert r.returncode == 1 and "unknown option: -x" in r.stderr
+    assert r.returncode == 1 and "Unknown option: -x" in r.stderr
 
 
 # ---- short forms --------------------------------------------------------------------------------

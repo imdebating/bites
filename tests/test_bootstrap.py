@@ -102,7 +102,7 @@ def test_dry_run_changes_nothing(remote):
     before = refs(bare, env)
     r = run(bare, env, "--dry-run", "owner/repo", "main")
     assert "[dry-run]" in r.stdout
-    assert "nothing was verified" in r.stdout
+    assert "have not verified anything" in r.stdout
     assert refs(bare, env) == before
 
 

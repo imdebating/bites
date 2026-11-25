@@ -81,7 +81,7 @@ def test_all_branches_covers_every_branch_including_slash_names(tmp_path):
     for b in ("main", "dev", "feature/x"):
         assert f"refs/heads/bites/{b}" in got
         assert show(bare, env, b, WF) == show(bare, env, "main", WF)
-    assert "setup complete and verified" in r.stdout
+    assert "Setup complete and verified" in r.stdout
 
 
 def test_all_branches_skips_output_and_setup_branches(tmp_path):
@@ -139,7 +139,7 @@ def test_unselected_branches_are_untouched_and_default_gets_only_the_caller(tmp_
     assert "refs/heads/bites/main" not in got and "refs/heads/bites/other" not in got
     assert "refs/heads/bites/dev" in got
     assert show(bare, env, "main", WF) == show(bare, env, "dev", WF)
-    assert "not mirrored" in r.stdout
+    assert "No output branch" in r.stdout
 
 
 def test_mirror_branches_exist_before_the_workflow_is_pushed(tmp_path):
@@ -215,7 +215,7 @@ def test_a_rejected_branch_is_reported_and_the_rest_is_finished(tmp_path):
     )
     r = run(bare, env, "main", "dev")
     assert r.returncode == 1
-    assert "INCOMPLETE" in r.stderr and "FAILED" in r.stdout
+    assert "Incomplete" in r.stderr and "Failed" in r.stdout
     assert "refs/heads/bites/main" in refs(bare, env)
     assert has(bare, env, "main", WF)
     assert not has(bare, env, "dev", WF)
@@ -230,7 +230,7 @@ def test_a_mirror_that_cannot_be_created_keeps_its_workflow_back(tmp_path):
     install_hook(bare, "update", 'if [ "$1" = refs/heads/bites/dev ]; then exit 1; fi\nexit 0\n')
     r = run(bare, env, "main", "dev")
     assert r.returncode == 1
-    assert "NOT DONE" in r.stdout
+    assert "Not Complete" in r.stdout
     assert not has(bare, env, "dev", WF)
     assert "refs/heads/bites/main" in refs(bare, env)
 
@@ -270,7 +270,7 @@ def test_success_is_not_claimed_when_the_remote_does_not_hold_the_result(tmp_pat
     install_hook(bare, "post-receive", 'git update-ref -d refs/heads/bites/dev 2>/dev/null\nexit 0\n')
     r = run(bare, env, "main", "dev")
     assert r.returncode == 1
-    assert "FAILED" in r.stdout and "not on the remote" in r.stdout
+    assert "Failed" in r.stdout and "on the remote after the push" in r.stdout
     assert "complete and verified" not in r.stdout
 
 
@@ -280,5 +280,5 @@ def test_dry_run_with_all_branches_writes_nothing(tmp_path):
     r = run(bare, env, "--dry-run", "--all-branches")
     assert r.returncode == 0, r.stdout + r.stderr
     assert r.stdout.count("[dry-run]") >= 4
-    assert "planned" in r.stdout and "complete and verified" not in r.stdout
+    assert "Planned" in r.stdout and "complete and verified" not in r.stdout
     assert refs(bare, env) == before

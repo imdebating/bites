@@ -1,42 +1,42 @@
 #!/usr/bin/env bash
-# prune.sh - find (and optionally delete) bites/<branch> mirrors whose source branch no
-# longer exists. Use it for mirrors orphaned before the cleanup job existed, or when a
-# delete event was missed. Without --delete it only lists them.
+# prune.sh - find (and optionally delete) bites/<branch> output branches whose source branch no
+# longer exists.
 #
 # usage: scripts/prune.sh [--delete] [--ssh] [--url URL] OWNER/REPO
 #
-#   --delete   delete the orphaned mirrors instead of only listing them
-#   --ssh      talk to GitHub over SSH instead of HTTPS
-#   --url URL  use this repository URL instead (used by the tests)
-#   -h, --help show this text
-#
-# A mirror is an orphan when no branch named exactly like the part after "bites/" exists.
-# Exit status: 0 on success (orphans found or not); non-zero on bad arguments or git errors.
+# The full help text, and every message this script prints, is in locales/strings.en.toml
+# ([prune]); scripts/strings.sh is generated from that file.
 set -euo pipefail
 
-usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; }
-die()  { echo "error: $*" >&2; exit 1; }
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=strings.sh
+. "$HERE/strings.sh"
+
+text()  { local key="$1"; shift; bites_fmt "prune.$key" ${1+"$@"}; }
+say()   { printf '%s\n' "$(text "$@")"; }
+usage() { say help; }
+die()   { printf '%s\n' "$(text prefix_error message="$*")" >&2; exit 1; }
 
 DELETE=0; PROTO="https"; URL=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --delete) DELETE=1; shift ;;
     --ssh)    PROTO="ssh"; shift ;;
-    --url)    [ $# -ge 2 ] || die "--url needs a value"; URL="$2"; shift 2 ;;
+    --url)    [ $# -ge 2 ] || die "$(text url_option_needs_value)"; URL="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
-    -*)       usage >&2; die "unknown option: $1" ;;
+    -*)       usage >&2; die "$(text unknown_option option="$1")" ;;
     *)        break ;;
   esac
 done
 [ $# -eq 1 ] || { usage >&2; exit 2; }
 TARGET="$1"
-[[ "$TARGET" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "target must look like OWNER/REPO: $TARGET"
+[[ "$TARGET" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "$(text target_invalid target="$TARGET")"
 if [ -z "$URL" ]; then
   if [ "$PROTO" = "ssh" ]; then URL="git@github.com:$TARGET.git"; else URL="https://github.com/$TARGET.git"; fi
 fi
 
 # Every branch name on the remote, one per line ("<sha><TAB>refs/heads/<name>" -> "<name>").
-HEADS="$(git ls-remote --heads "$URL" | awk '{print substr($2, 12)}')" || die "could not read $URL"
+HEADS="$(git ls-remote --heads "$URL" | awk '{print substr($2, 12)}')" || die "$(text could_not_read url="$URL")"
 
 # `git push` needs a repository to run in, even for a deletion by URL.
 TMP="$(mktemp -d)"
@@ -51,11 +51,11 @@ while IFS= read -r name; do
   found=$((found + 1))
   if [ "$DELETE" = 1 ]; then
     git -C "$TMP" push --quiet "$URL" ":refs/heads/$name"
-    echo "deleted: $name"
+    say deleted name="$name"
   else
-    echo "orphan:  $name"
+    say orphan name="$name"
   fi
 done <<< "$HEADS"
 
-if [ "$found" = 0 ]; then echo "no orphaned bites/* branches"
-elif [ "$DELETE" = 0 ]; then echo "$found orphaned; run again with --delete to remove them"; fi
+if [ "$found" = 0 ]; then say none_found
+elif [ "$DELETE" = 0 ]; then say found_summary count="$found"; fi

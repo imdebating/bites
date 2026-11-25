@@ -45,11 +45,11 @@ Requirements: GitHub Actions enabled for the repository, and GitHub-hosted Linux
 `ubuntu-24.04`; other runners are untested). The assistant's token needs read access, and write access if it will push
 patch files.
 
-**Shortcut:** `scripts/bootstrap.sh` does steps 1 and 2 for you, on every branch you choose, for new or existing repositories, and is safe to repeat:
+**Shortcut:** `bootstrap.sh` (attached to every release, and in the `scripts/` folder) does steps 1 and 2 for you, on every branch you choose, for new or existing repositories, and is safe to repeat:
 
-    git clone https://github.com/imdebating/bites && cd bites
-    scripts/bootstrap.sh OWNER/REPO main feature
-    scripts/bootstrap.sh --all-branches OWNER/REPO
+    curl -fsSLO https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh
+    bash bootstrap.sh OWNER/REPO main feature
+    bash bootstrap.sh --all-branches OWNER/REPO
 
 Both leave every chosen branch ready to build on its next push, without merging anything (your local checkouts only need a normal `git pull`). See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
 
@@ -67,7 +67,7 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: Rebuild and re-split every large file instead of only changed ones
+        description: Rebuild and re-segment every large file instead of only changed ones
         type: boolean
         default: false
 

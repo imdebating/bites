@@ -1,6 +1,7 @@
 """Tests that keep the documentation and the files it describes in step."""
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,16 +43,16 @@ def test_configuration_guide_lists_every_default_extension():
 
 
 def test_bootstrap_guide_documents_every_option():
-    """Each option in bootstrap.sh's help (except the two test hooks) is named in docs/bootstrap.md.
+    """Each option in bootstrap.sh's help text, which lives in the catalog, is named in docs/bootstrap.md (except the two test hooks).
 
     The help lists each option as `-x, --long-name` or, for the few without a short form, `--long-name`.
     The guide must show every long name as `--long-name` and every short name as `-x`, both in backticks.
     """
-    script = (ROOT / "scripts" / "bootstrap.sh").read_text(encoding="utf-8")
     guide = (ROOT / "docs" / "bootstrap.md").read_text(encoding="utf-8")
-    header = script.split("set -euo pipefail", 1)[0]
-    options = set(re.findall(r"^#\s+(?:-[A-Za-z],\s+)?(--[a-z-]+)", header, re.MULTILINE))
-    shorts = set(re.findall(r"^#\s+(-[A-Za-z]),\s+--", header, re.MULTILINE))
+    catalog = tomllib.loads((ROOT / "locales" / "strings.en.toml").read_text(encoding="utf-8"))
+    header = catalog["bootstrap"]["help"]
+    options = set(re.findall(r"^\s+(?:-[A-Za-z],\s+)?(--[a-z-]+)", header, re.MULTILINE))
+    shorts = set(re.findall(r"^\s+(-[A-Za-z]),\s+--", header, re.MULTILINE))
     assert {"--all-branches", "--protected", "--version"} <= options
     assert {"-a", "-p", "-V"} <= shorts
     for option in sorted(options - {"--url", "--action-url"}):

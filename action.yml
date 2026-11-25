@@ -1,4 +1,4 @@
-# action.yml - composite action: mirror large text files as exact parts and apply patch files
+# action.yml - composite action: segment large text files as exact parts (bites) and apply patch files
 #
 # Used from a project as ONE step of a job (see templates/bites.yml):
 #     - uses: imdebating/bites@v1
@@ -12,7 +12,7 @@
 #           docs/generated/**
 #
 # The action and the Python package it runs (bites_tool/) are fetched together at the
-# ref the caller names, so they can never drift apart: the package is found through
+# workflow level, so they can never drift apart: the package is found through
 # github.action_path. Nothing is copied into the project.
 #
 # Requirements on the calling job:
@@ -41,28 +41,28 @@
 # Actions used here are pinned to full commit SHAs (version in the trailing comment);
 # Dependabot updates them in THIS repository. Releasing a change: see README.md.
 name: bites
-description: Mirror large text files as exact, size-capped parts on bites/<branch>, and apply patch files.
+description: MCP read limits truncate large files. On its own branch, bites copies files as exact, size-capped bites; patches apply edits
 author: imdebating
 
 inputs:
   full:
-    description: "'true' rebuilds and re-splits every large file instead of only changed ones"
+    description: "'true' rebuilds and re-segments every large file instead of only changed ones"
     required: false
     default: 'false'
   max-chars:
-    description: "Largest part body, and the size above which a file is split, in characters. Empty keeps the value from bites.toml or the default (27000)"
+    description: "Largest bite and the size above which a file is segmented, in characters. Empty keeps the value from bites.toml or the default (27000)"
     required: false
     default: ''
   read-cap:
-    description: "The connector's per-result limit in characters; a part plus the connector's wrapper must fit under it. Empty keeps the value from bites.toml or the default (28000)"
+    description: "The connector's per-result limit in characters; a bite plus the connector's wrapper must fit under it. Empty keeps the value from bites.toml or the default (28000)"
     required: false
     default: ''
   include:
-    description: "Globs of the files to mirror, one per line; replaces the default list. Empty keeps the list from bites.toml or the default"
+    description: "Globs of the files to process, one per line; replaces the default list. Empty keeps the list from bites.toml or the default"
     required: false
     default: ''
   exclude:
-    description: "Globs of files to leave out, one per line; replaces the default list (node_modules). .git, .github, .bites-patches and bites.toml are always left out. Empty keeps the list from bites.toml or the default"
+    description: "Globs of files to omit, one per line; replaces the default list (node_modules). .git, .github, .bites-patches and bites.toml are always left out. Empty keeps the list from bites.toml or the default"
     required: false
     default: ''
 
@@ -90,7 +90,7 @@ runs:
           echo "go=true" >> "$GITHUB_OUTPUT"
         else
           echo "go=false" >> "$GITHUB_OUTPUT"
-          echo "No bites/$BRANCH_NAME branch; nothing to do."
+          echo "I couldn't find the bites/$BRANCH_NAME branch; there is nothing to do."
           exit 0
         fi
         {
@@ -102,7 +102,7 @@ runs:
         } >> "$GITHUB_ENV"
 
     # Second working tree, in ./out, holding the bites branch that will be updated.
-    - name: Check out bites branch
+    - name: Check out output branch
       if: steps.gate.outputs.go == 'true'
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -143,7 +143,7 @@ runs:
     # Incremental by default (only files whose git blob changed are re-split); the
     # `full` input forces everything. The recorded source commit is the current HEAD,
     # which includes the patch commit when there was one.
-    - name: Build parts
+    - name: Build bites
       if: steps.gate.outputs.go == 'true'
       shell: bash
       env:
@@ -174,8 +174,8 @@ runs:
           --status "$RUNNER_TEMP/status.json"
 
     # After any failure: throw away uncommitted changes in the bites checkout so the
-    # last good parts stay intact, then write only last_build.json (status "error").
-    - name: Record failure (leave parts untouched, publish only last_build.json)
+    # last good bites stay intact, then write only last_build.json (status "error").
+    - name: Record failure (leave bites untouched, publish only last_build.json)
       if: failure() && steps.gate.outputs.go == 'true'
       shell: bash
       run: |
@@ -186,7 +186,7 @@ runs:
 
     # Runs after success or failure (not cancellation). Commits only if something
     # changed; the manifest records the source commit, so most runs produce a commit.
-    - name: Publish to bites branch
+    - name: Publish to output branch
       if: ${{ (success() || failure()) && steps.gate.outputs.go == 'true' }}
       shell: bash
       working-directory: out

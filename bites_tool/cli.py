@@ -26,52 +26,52 @@ from pathlib import Path
 from .build import cmd_build, cmd_reassemble, cmd_report_failure, cmd_verify
 from .core import SCHEMA, BitesError, dumps
 from .patches import cmd_apply
+from .strings import message
 
 
 def make_parser():
     """Build the argparse parser with one sub-command per `cmd_*` function."""
-    ap = argparse.ArgumentParser(prog="python -m bites_tool", description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(prog="python -m bites_tool", description=message("cli", "description"))
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def common(p):
         """Add the option every command shares: where to record a JSON error."""
-        p.add_argument("--status", help="on failure, write a JSON error record to this path")
+        p.add_argument("--status", help=message("cli", "help_status"))
 
     def toml(p):
         """Add the option that names the configuration file (stored as `a.config`, the path)."""
         p.add_argument(
             "--toml", dest="config", default="bites.toml", metavar="FILE",
-            help="the configuration file (default bites.toml); -c toml_file=FILE does the same",
+            help=message("cli", "help_toml"),
         )
 
     def settings(p):
         """Add the option that overrides settings (stored as `a.set`, a list of KEY=VALUE items)."""
         p.add_argument(
             "-c", "--config", dest="set", action="append", default=[], metavar="KEY=VALUE",
-            help="override a setting (max_chars, read_cap, include, exclude, or toml_file); repeat for more, "
-                 "repeated include/exclude options add to one list",
+            help=message("cli", "help_config"),
         )
 
-    p = sub.add_parser("apply", help="apply pending patch files")
-    p.add_argument("--src", default=".", help="source repository root")
-    p.add_argument("--patches", default=".bites-patches", help="patch directory, relative to --src")
-    p.add_argument("--report", help="write the per-section patch report (JSON) here")
+    p = sub.add_parser("apply", help=message("cli", "help_apply"))
+    p.add_argument("--src", default=".", help=message("cli", "help_src"))
+    p.add_argument("--patches", default=".bites-patches", help=message("cli", "help_patches"))
+    p.add_argument("--report", help=message("cli", "help_report"))
     common(p)
     p.set_defaults(func=cmd_apply)
 
-    p = sub.add_parser("build", help="write parts, manifest.json and last_build.json")
+    p = sub.add_parser("build", help=message("cli", "help_build"))
     toml(p)
-    p.add_argument("--src", default=".", help="source repository root")
-    p.add_argument("--out", required=True, help="checkout of the bites/<branch> tree")
-    p.add_argument("--source-branch", default="", help="recorded in the manifest")
-    p.add_argument("--source-commit", default="", help="recorded in the manifest")
-    p.add_argument("--patch-report", help="report written by `apply`, copied into last_build.json")
-    p.add_argument("--full", action="store_true", help="rebuild every large file")
+    p.add_argument("--src", default=".", help=message("cli", "help_src"))
+    p.add_argument("--out", required=True, help=message("cli", "help_out"))
+    p.add_argument("--source-branch", default="", help=message("cli", "help_recorded"))
+    p.add_argument("--source-commit", default="", help=message("cli", "help_recorded"))
+    p.add_argument("--patch-report", help=message("cli", "help_patch_report"))
+    p.add_argument("--full", action="store_true", help=message("cli", "help_full"))
     settings(p)
     common(p)
     p.set_defaults(func=cmd_build)
 
-    p = sub.add_parser("verify", help="check the output tree against the source tree")
+    p = sub.add_parser("verify", help=message("cli", "help_verify"))
     toml(p)
     p.add_argument("--src", default=".")
     p.add_argument("--out", required=True)
@@ -79,13 +79,13 @@ def make_parser():
     common(p)
     p.set_defaults(func=cmd_verify)
 
-    p = sub.add_parser("reassemble", help="write one original file to stdout")
+    p = sub.add_parser("reassemble", help=message("cli", "help_reassemble"))
     p.add_argument("--out", required=True)
-    p.add_argument("--file", required=True, help="source path as listed in the manifest")
+    p.add_argument("--file", required=True, help=message("cli", "help_file"))
     common(p)
     p.set_defaults(func=cmd_reassemble)
 
-    p = sub.add_parser("report-failure", help="turn a failure status into last_build.json")
+    p = sub.add_parser("report-failure", help=message("cli", "help_report_failure"))
     p.add_argument("--status", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--source-branch", default="")
@@ -107,7 +107,7 @@ def take_toml_file(a):
         key, sep, value = item.partition("=")
         if sep and key.strip() == "toml_file":
             if not value.strip():
-                raise BitesError("toml_file needs a file name: -c toml_file=FILE")
+                raise BitesError(message("cli", "toml_file_needs_name"))
             a.config = value.strip()
         else:
             kept.append(item)
@@ -128,8 +128,8 @@ def main(argv=None) -> int:
     except BitesError as exc:
         msg = str(exc)
     except Exception as exc:  # noqa: BLE001 - report anything as a failed stage
-        msg = f"{type(exc).__name__}: {exc}"
-    print(f"bites {a.cmd}: ERROR: {msg}", file=sys.stderr)
+        msg = message("cli", "unexpected_error", type=type(exc).__name__, message=exc)
+    print(message("cli", "error_line", command=a.cmd, message=msg), file=sys.stderr)
     if getattr(a, "status", None):
         Path(a.status).write_text(
             dumps({"schema": SCHEMA, "status": "error", "stage": a.cmd, "message": msg[:2000]}),

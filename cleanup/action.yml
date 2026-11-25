@@ -1,6 +1,6 @@
 # cleanup/action.yml - composite action: delete bites/<branch> after <branch> is deleted
 #
-# Used from the caller workflow's `cleanup` job (see templates/bites.yml):
+# Used from the workflow's `cleanup` job (see templates/bites.yml):
 #     - uses: imdebating/bites/cleanup@v1
 #       with:
 #         dry-run: false       # optional; 'true' only reports what it would delete
@@ -8,11 +8,11 @@
 # Runs on the `delete` event. All the decisions are in scripts/cleanup.sh (which has its own
 # tests): it deletes bites/<branch> only when the event is a branch deletion, the branch is
 # not the default branch and not itself a bites/* branch, the source branch has not been
-# re-created in the meantime, and the mirror exists.
+# re-created in the meantime, and the output branch exists.
 #
 # The calling job must grant `permissions: contents: write`.
 name: bites cleanup
-description: Delete the bites/<branch> mirror branch when its source branch is deleted.
+description: Delete the output branch bites/<branch> when its source branch is deleted.
 author: imdebating
 
 inputs:
@@ -33,7 +33,7 @@ runs:
 
     # github.action_path is the directory that holds this action.yml, that is cleanup/ in
     # the action repository, so the script is one level up in scripts/.
-    - name: Delete the mirror branch
+    - name: Delete the output branch
       shell: bash
       env:
         BRANCH: ${{ github.event.ref }}

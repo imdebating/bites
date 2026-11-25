@@ -28,6 +28,7 @@ from itertools import islice
 from pathlib import Path, PurePosixPath
 
 from .core import BitesError, blob_sha, dumps
+from .strings import message
 
 # A marker line: "@@@ " + keyword (+ optional argument), starting at column 0.
 MARKER = re.compile(r"^@@@ (FILE|BASE|NEW|FIND|REPLACE|APPEND|END)(?: (.*))?$")
@@ -55,7 +56,7 @@ def parse_patch(text: str, name: str) -> list[dict]:
         body = "\n".join(buf)
         if mode == "find":
             if body == "":
-                raise BitesError(f"{name}:{ln}: empty FIND text")
+                raise BitesError(message("patches", "empty_find", name=name, line=ln))
             find_text = body  # completed by the REPLACE block that must follow
         elif mode == "replace":
             cur["ops"].append(("replace", find_text, body))
@@ -70,46 +71,46 @@ def parse_patch(text: str, name: str) -> list[dict]:
             if mode is None:
                 if line.strip() == "":
                     continue  # blank lines between markers are ignored
-                raise BitesError(f"{name}:{ln}: text outside a FIND/REPLACE/APPEND block")
+                raise BitesError(message("patches", "text_outside_block", name=name, line=ln))
             buf.append(line)
             continue
         kind, arg = m.group(1), (m.group(2) or "").strip()
         close(ln)
         if kind == "FILE":
             if cur is not None:
-                raise BitesError(f"{name}:{ln}: FILE before END of the previous section")
+                raise BitesError(message("patches", "file_before_end", name=name, line=ln))
             if not arg:
-                raise BitesError(f"{name}:{ln}: FILE needs a path")
+                raise BitesError(message("patches", "file_needs_path", name=name, line=ln))
             cur = {"path": arg, "base": None, "new": False, "ops": []}
         elif cur is None:
-            raise BitesError(f"{name}:{ln}: {kind} outside a FILE section")
+            raise BitesError(message("patches", "kind_outside_file", name=name, line=ln, kind=kind))
         elif kind == "BASE":
             cur["base"] = arg.lower()
         elif kind == "NEW":
             cur["new"] = True
         elif kind in ("FIND", "APPEND"):
             if find_text is not None:
-                raise BitesError(f"{name}:{ln}: {kind} while a FIND has no REPLACE")
+                raise BitesError(message("patches", "kind_without_replace", name=name, line=ln, kind=kind))
             mode = kind.lower()
         elif kind == "REPLACE":
             if find_text is None:
-                raise BitesError(f"{name}:{ln}: REPLACE without FIND")
+                raise BitesError(message("patches", "replace_without_find", name=name, line=ln))
             mode = "replace"
         elif kind == "END":
             if find_text is not None:
-                raise BitesError(f"{name}:{ln}: FIND without REPLACE")
+                raise BitesError(message("patches", "find_without_replace", name=name, line=ln))
             if not cur["ops"]:
-                raise BitesError(f"{name}:{ln}: section for {cur['path']} has no operations")
+                raise BitesError(message("patches", "section_no_operations", name=name, line=ln, path=cur["path"]))
             if cur["new"] and any(op[0] == "replace" for op in cur["ops"]):
-                raise BitesError(f"{name}:{ln}: NEW files accept APPEND only")
+                raise BitesError(message("patches", "new_files_append_only", name=name, line=ln))
             if not cur["new"] and not cur["base"]:
-                raise BitesError(f"{name}:{ln}: {cur['path']} needs a BASE blob SHA (or NEW)")
+                raise BitesError(message("patches", "needs_base", name=name, line=ln, path=cur["path"]))
             sections.append(cur)
             cur = None
     if cur is not None or mode is not None:
-        raise BitesError(f"{name}: missing @@@ END")
+        raise BitesError(message("patches", "missing_end", name=name))
     if not sections:
-        raise BitesError(f"{name}: no sections")
+        raise BitesError(message("patches", "no_sections", name=name))
     return sections
 
 
@@ -121,7 +122,7 @@ def safe_rel(path: str) -> str:
     """
     pp = PurePosixPath(path)
     if pp.is_absolute() or not pp.parts or ".." in pp.parts or pp.parts[0] == ".git":
-        raise BitesError(f"unsafe patch path: {path}")
+        raise BitesError(message("patches", "unsafe_path", path=path))
     return pp.as_posix()
 
 
@@ -150,24 +151,23 @@ def apply_section(pname: str, rel: str, sec: dict, cur):
     """
     if sec["new"]:
         if cur is not None:
-            raise BitesError(f"{pname}: {rel} already exists (section marked NEW)")
+            raise BitesError(message("patches", "already_exists", patch=pname, file=rel))
         text = ""
     else:
         if cur is None:
-            raise BitesError(f"{pname}: {rel} does not exist")
+            raise BitesError(message("patches", "does_not_exist", patch=pname, file=rel))
         base = sec["base"] or ""
         if len(base) < 12 or not re.fullmatch(r"[0-9a-f]+", base):
-            raise BitesError(f"{pname}: {rel}: BASE must be at least 12 hex characters")
+            raise BitesError(message("patches", "base_too_short", patch=pname, file=rel))
         actual = blob_sha(cur)
         if not actual.startswith(base):
             raise BitesError(
-                f"{pname}: {rel}: BASE {base} does not match current blob {actual[:12]}; "
-                "re-read the file and rewrite the patch"
+                message("patches", "base_mismatch", patch=pname, file=rel, base=base, actual=actual[:12])
             )
         try:
             text = cur.decode("utf-8")
         except UnicodeDecodeError:
-            raise BitesError(f"{pname}: {rel} is not UTF-8")
+            raise BitesError(message("patches", "not_utf8", patch=pname, file=rel))
     before = text
     crlf = "\r\n" in text
     eol = "\r\n" if crlf else "\n"
@@ -182,8 +182,7 @@ def apply_section(pname: str, rel: str, sec: dict, cur):
             count = text.count(find)
             if count != 1:
                 raise BitesError(
-                    f"{pname}: {rel}: operation {k}: FIND text matched {count} time(s), need exactly 1: "
-                    f"{op[1][:60]!r}"
+                    message("patches", "find_count", patch=pname, file=rel, operation=k, count=count, text=repr(op[1][:60]))
                 )
             text = text.replace(find, repl, 1)
         else:
@@ -209,7 +208,7 @@ def cmd_apply(a):
     pdir = src / a.patches
     pfiles = sorted(pdir.glob("*.patch")) if pdir.is_dir() else []
     if not pfiles:
-        print("bites apply: no patches")
+        print(message("patches", "apply_none"))
         return 0
     state, report = {}, []
     for pf in pfiles:
@@ -233,5 +232,5 @@ def cmd_apply(a):
         pf.unlink()
     if a.report:
         Path(a.report).write_text(dumps(report), encoding="utf-8")
-    print(f"bites apply: applied {len(pfiles)} patch file(s), {len(state)} file(s) changed")
+    print(message("patches", "apply_done", patches=len(pfiles), files=len(state)))
     return 0

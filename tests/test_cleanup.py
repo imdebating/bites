@@ -77,7 +77,7 @@ def test_ignores_tags(tmp_path):
 def test_nothing_to_do_without_a_mirror(tmp_path):
     """A deleted branch that was never mirrored is a quiet success."""
     r, left = cleanup(tmp_path, ["plain"], [], "plain")
-    assert r.returncode == 0 and "no bites/plain branch" in r.stdout
+    assert r.returncode == 0 and "No bites/plain branch" in r.stdout
 
 
 def test_dry_run_deletes_nothing(tmp_path):

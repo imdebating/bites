@@ -20,7 +20,7 @@ def test_lists_orphans_without_deleting(tmp_path):
     """Only mirrors with no matching source branch are listed, and nothing is deleted."""
     bare, env = make_remote(tmp_path, branches=["alive"], mirrors=["alive", "gone", "main"])
     r = prune(bare, env)
-    assert "orphan:  bites/gone" in r.stdout
+    assert "Orphan:  bites/gone" in r.stdout
     assert "bites/alive" not in r.stdout and "bites/main" not in r.stdout
     assert {"bites/alive", "bites/gone", "bites/main"} <= branches(bare, env)
 
@@ -37,13 +37,13 @@ def test_delete_removes_only_orphans(tmp_path):
 def test_nested_branch_names(tmp_path):
     """bites/feature/x is an orphan only when feature/x is gone, not when merely feature exists."""
     bare, env = make_remote(tmp_path, branches=["feature-a"], mirrors=["feature/x"])
-    assert "orphan:  bites/feature/x" in prune(bare, env).stdout
+    assert "Orphan:  bites/feature/x" in prune(bare, env).stdout
 
 
 def test_reports_when_clean(tmp_path):
     """With no orphans the script says so."""
     bare, env = make_remote(tmp_path, branches=["alive"], mirrors=["alive"])
-    assert "no orphaned" in prune(bare, env).stdout
+    assert "No orphaned" in prune(bare, env).stdout
 
 
 def test_rejects_bad_target(tmp_path):

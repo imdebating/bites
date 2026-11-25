@@ -1,34 +1,46 @@
 # Bootstrap and repository settings
 
-`scripts/bootstrap.sh` sets bites up with one command: it adds the caller workflow to every branch you choose, creates each branch's `bites/<branch>` mirror, and then checks that all of it is on the remote.
+`scripts/bootstrap.sh` sets bites up with one command: it adds the bites workflow to every branch you choose, creates each branch's `bites/<branch>` output branch, and then checks that all of it is on the remote.
 It works for new and existing repositories, and is safe to repeat.
 
-    git clone https://github.com/imdebating/bites && cd bites
-    scripts/bootstrap.sh OWNER/REPO main feature
-    scripts/bootstrap.sh --all-branches OWNER/REPO
+    curl -fsSLO https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh
+    bash bootstrap.sh OWNER/REPO main feature
+    bash bootstrap.sh --all-branches OWNER/REPO
 
-The first command covers `main` and `feature`. The second covers every branch the repository has at that moment, except `bites/*`, `bites-setup`, and `bites-setup/*`. With no branch names, only the default branch is covered, whatever its name. 
+The first command covers `main` and `feature`. The second covers every branch the repository has at that moment, except `bites/*`, `bites-setup`, and `bites-setup/*`. With no branch names, only the default branch is covered, whatever its name.
 You cannot combine `--all-branches` with branch names.
 Options go before `OWNER/REPO`, and branch names go after it.
+
+## Getting the script
+
+The download is the whole installation: every release has one file, `bootstrap.sh`, with everything it needs written into it, and it needs only `bash` and `git` (plus `gh`, if you want it to open pull requests).
+To run it without saving it, pipe it into `bash`; everything after `--` goes to the script:
+
+    curl -fsSL https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh | bash -s -- OWNER/REPO main feature
+
+The `latest` link points to the newest release that is not a pre-release. To use an exact version, replace `latest/download` with `download/vX.Y.Z`.
+Each release also has `bootstrap.sh.sha256`. To check the download, put both files in one folder and run `sha256sum -c bootstrap.sh.sha256` (on macOS, `shasum -a 256 -c bootstrap.sh.sha256`).
+In a clone of the repository, `scripts/bootstrap.sh` does the same job; the release file is built from it by `scripts/build_bootstrap.py`.
+The rest of this guide calls the script `bootstrap.sh`.
 
 ## What it does
 
 The workflow file lives on each branch that should build, because a push is run by the copy of `.github/workflows/bites.yml` in the pushed commit.
 The code that does the work is shared: the file only says `uses: imdebating/bites@v1`. Bootstrap therefore does this, in order:
 
-1. Clones the repository and works out the selected branches. The default branch is always included for the workflow, because deleting a branch runs the copy on the default branch (that is what removes the mirror).
-   It is mirrored only if you selected it.
+1. Clones the repository and works out the selected branches. The default branch is always included for the workflow, because deleting a branch runs the copy on the default branch (that is what removes the output branch).
+   It gets an output branch only if you selected it.
 2. Checks every selected branch before it changes anything: the branch exists, and an existing `.github/workflows/bites.yml` is a bites workflow whose settings would not be lost.
    If any check fails, nothing is written.
-3. Creates each missing `bites/<branch>`, before the workflow, so the first build already finds its mirror.
+3. Creates each missing `bites/<branch>`, before the workflow, so the first build already finds its output branch.
 4. Adds the workflow to each branch as one new commit on top of that branch. Nothing is merged or rebased, no source branch is force-pushed, and no other file changes.
    A branch that rejects the push because it is protected gets a pull request instead, if you gave `--protected` (see below).
-5. Fetches the remote again and checks that each workflow and mirror is really there.
+5. Fetches the remote again and checks that each workflow and output branch is really there.
 6. Prints one line per branch, and reports success only if every branch is ready.
 
 ## What "complete" means
 
-When bootstrap exits with status 0, every branch you asked for has the workflow and its mirror on the remote.
+When bootstrap exits with status 0, every branch you asked for has the workflow and its output branch on the remote.
 The push that adds the workflow also starts a first build on that branch, and the next ordinary commit and push to any of them starts another.
 You do nothing else, apart from the normal `git pull` to bring the new workflow commit into your local checkouts.
 
@@ -75,9 +87,9 @@ Each one stops with a message that names its replacement.
 ## If it stops part way
 
 A push can be refused after the checks pass, for example by branch protection, a missing permission, or because someone pushed to the branch meanwhile (bootstrap never overwrites that).
-The summary lists each branch as added, already there, PENDING, FAILED or NOT DONE, with the reason from git, and the exit status is 1.
+The summary lists each branch as Added, Already there, Pending, Failed, or Not Complete, with the reason from git, and the exit status is 1.
 Fix the cause and run the same command again: finished work is recognised and not repeated.
-A branch whose mirror could not be created is left without the workflow, so it never builds against a missing mirror.
+A branch whose output branch could not be created is left without the workflow, so it never builds against a missing output branch.
 
 ## Protected branches and `--protected`
 
@@ -94,7 +106,7 @@ Merge the pull request (its diff should show that one file), then run the same c
 
 The option works for any branch, not only the default branch.
 In one run, branches that accept the push are finished directly, and only the protected ones get a pull request, for example `scripts/bootstrap.sh -p OWNER/REPO main dev`.
-Without `--protected`, a protected branch is reported as FAILED, and the message names the option.
+Without `--protected`, a protected branch is reported as Failed, and the message names the option.
 
 Bootstrap accepts an existing `bites-setup/<branch>` only if merging it would change nothing but that one file, with the expected content.
 If the branch holds anything else (extra files, a changed file mode, or another version), bootstrap replaces it, because the branch is reserved for this.
@@ -107,13 +119,13 @@ A dry run cannot tell whether a branch is protected. With `--dry-run --protected
 
 ## Branches created later
 
-A new branch builds only when it has the workflow file and a `bites/<branch>` mirror.
-Creating it from a branch that already has the file carries the file along; the mirror still has to be created.
+A new branch builds only when it has the workflow file and a `bites/<branch>` output branch.
+Creating it from a branch that already has the file carries the file along; the output branch still has to be created.
 Running bootstrap for that branch does both.
 
 ## Repository settings
 
-- Actions must be enabled. 
+- Actions must be enabled.
   If your organization limits Actions to an allowlist, add `imdebating/bites@*`.
 - Do not protect `bites/**` or restrict deletions on it: the workflow pushes to those branches and deletes them.
 - Applied patches are committed straight to the source branch with the workflow's `GITHUB_TOKEN`, and GitHub does not let that token bypass a rule that requires a pull request.
