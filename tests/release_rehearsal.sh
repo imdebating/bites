@@ -105,16 +105,18 @@ assets_are() { [ "$(rel '[.assets[].name] | sort | join(",")')" = "bootstrap.sh,
 
 # ---------- the repository ----------
 setup_scratch() {
+  local err
   say ""; say "## setup $R"
   safe_repo "$R" || die "refusing to use $R"
   delete_repo "$R" || return 1
   bash "$ROOT/tests/scratch_repo.sh" $VIS --empty "$PREFIX-g" >/dev/null || { say "  cannot create $R"; return 1; }
   if [ "$IMM" = 1 ]; then
-    if gh api -X PUT "repos/$R/immutable-releases" >/dev/null 2>&1 \
-        && [ "$(gh api "repos/$R/immutable-releases" --jq .enabled 2>/dev/null)" = true ]; then
+    # A 204 from the PUT is the answer; the release itself is checked for "immutable" in R1.
+    if err=$(gh api -X PUT "repos/$R/immutable-releases" 2>&1); then
       IMMON=1
+      note "immutable releases are on; GitHub reports: $(gh api "repos/$R/immutable-releases" 2>&1 | tr -d '\n ')"
     else
-      say "  could not turn on immutable releases (this needs admin on $R); going on without them"
+      say "  could not turn on immutable releases on $R: ${err%%$'\n'*}; going on without them"
     fi
   fi
   say "  ready: https://github.com/$R (immutable releases: $([ "$IMMON" = 1 ] && echo on || echo off))"
