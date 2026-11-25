@@ -149,5 +149,5 @@ Notes column. A track that fails during setup shows as `track X`, FAIL, `setup f
    `scripts/`, `action.yml`, `cleanup/`, `bites_tool/` or `templates/`; commits to `tests/` and `docs/` do not need one.
 3. The check by hand above is done.
 4. Open the pull request into `main` and wait for CI.
-5. Merge. Tag `vX.Y.Z` and move the major tag: `git tag -f v1 && git push -f origin v1`. `VERSION` already holds the number.
-6. Publish release notes. For a release that renames options, say plainly which names are gone.
+5. Merge. The `release` workflow builds and tests `bootstrap.sh` and saves it with its checksum as the artifact `bootstrap-release-candidate`; it creates no release and no tag. Download the artifact, check the checksum, and create a draft release `vX.Y.Z` on the merge commit with both files and the release notes attached. Publish it only after both files are attached, because an immutable release cannot get files afterwards. Then move the major tag: `git tag -f v1 && git push -f origin v1`. `VERSION` already holds the number.
+6. In the release notes, say plainly which names are gone when a release renames options.
