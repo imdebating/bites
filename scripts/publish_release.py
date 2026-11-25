@@ -33,12 +33,19 @@ def fail(message):
 
 
 def run(*command):
-    """Run a command and return its output; stop with its error text if it fails."""
+    """Run a command and retain both response streams when it fails."""
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
-        fail(f"{' '.join(command[:3])} failed (status {result.returncode}): {result.stderr.strip() or result.stdout.strip()}")
+        details = "\n".join(
+            part.strip()
+            for part in (result.stdout, result.stderr)
+            if part.strip()
+        )
+        fail(
+            f"{' '.join(command)} failed "
+            f"(status {result.returncode}):\n{details}"
+        )
     return result.stdout
-
 
 def read_version():
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
