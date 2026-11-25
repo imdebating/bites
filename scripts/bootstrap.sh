@@ -25,10 +25,10 @@ text() { local key="$1"; shift; bites_fmt "bootstrap.$key" ${1+"$@"}; }
 say() { printf '%s\n' "$(text "$@")"; }
 usage() { say help; }
 quote() { printf '%q' "$1"; }  # a value shown in a message, with invisible characters made visible
-error_lines() { local line; while IFS= read -r line; do printf '%s\n' "$(text prefix_error message="$line")"; done <<< "$*"; }
+error_lines() { local line; while IFS= read -r line; do printf '%s\n' "$(text prefix_error message="$line")"; done <<< "$*"; bites_annotate error "bites bootstrap" "$*"; }
 die()  { error_lines "$*" >&2; exit 1; }
 note() { local line; while IFS= read -r line; do printf '%s\n' "$(text prefix_note message="$line")"; done <<< "$*"; }
-warn() { local line; while IFS= read -r line; do printf '%s\n' "$(text prefix_warning message="$line")" >&2; done <<< "$*"; }
+warn() { local line; while IFS= read -r line; do printf '%s\n' "$(text prefix_warning message="$line")" >&2; done <<< "$*"; bites_annotate warning "bites bootstrap" "$*"; }
 
 # >>> release: version
 # The one place the version lives is the VERSION file at the repository root. A script that was

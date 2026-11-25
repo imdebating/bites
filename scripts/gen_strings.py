@@ -89,6 +89,8 @@ bites_fmt() {
 """
 
 
+ANNOTATIONS = '\n# Runner commands use stderr so command substitutions and formatted stdout stay intact.\n# The runner accepts commands on either stream. Keep human diagnostics separate.\nbites_annotate() {\n  local level="$1" title="$2" body="$3"\n  case "$level" in error|warning) ;; *) return 2 ;; esac\n  [ "${GITHUB_ACTIONS:-}" = true ] || return 0\n  title=${title//%/%25}; title=${title//$\'\\r\'/%0D}; title=${title//$\'\\n\'/%0A}\n  title=${title//:/%3A}; title=${title//,/%2C}\n  body=${body//%/%25}; body=${body//$\'\\r\'/%0D}; body=${body//$\'\\n\'/%0A}\n  printf \'::%s title=%s::%s\\n\' "$level" "$title" "$body" >&2\n}\n'
+
 def quote(text: str) -> str:
     """Return `text` as one bash single-quoted word."""
     return "'" + text.replace("'", "'\\''") + "'"
@@ -100,7 +102,7 @@ def render() -> str:
     for table in SHELL_TABLES:
         for key, value in data[table].items():
             lines.append(f"    {table}.{key}) BITES_TEXT={quote(value)} ;;")
-    return "\n".join(lines) + "\n" + FOOTER
+    return "\n".join(lines) + "\n" + FOOTER + ANNOTATIONS
 
 
 def main() -> int:

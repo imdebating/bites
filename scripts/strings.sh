@@ -293,3 +293,15 @@ bites_fmt() {
       printf "%s", out
     }'
 }
+
+# Runner commands use stderr so command substitutions and formatted stdout stay intact.
+# The runner accepts commands on either stream. Keep human diagnostics separate.
+bites_annotate() {
+  local level="$1" title="$2" body="$3"
+  case "$level" in error|warning) ;; *) return 2 ;; esac
+  [ "${GITHUB_ACTIONS:-}" = true ] || return 0
+  title=${title//%/%25}; title=${title//$'\r'/%0D}; title=${title//$'\n'/%0A}
+  title=${title//:/%3A}; title=${title//,/%2C}
+  body=${body//%/%25}; body=${body//$'\r'/%0D}; body=${body//$'\n'/%0A}
+  printf '::%s title=%s::%s\n' "$level" "$title" "$body" >&2
+}

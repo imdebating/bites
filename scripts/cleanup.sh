@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/strings.sh"
 
 text() { local key="$1"; shift; bites_fmt "cleanup.$key" ${1+"$@"}; }
-die()  { printf '%s\n' "$(text prefix_error message="$*")" >&2; exit 1; }
+die()  { printf '%s\n' "$(text prefix_error message="$*")" >&2; bites_annotate error "bites cleanup" "$*"; exit 1; }
 note() { printf '%s\n' "$(text prefix_note message="$*")"; }
 
 [ -n "${BRANCH:-}" ] || die "$(text branch_not_set)"

@@ -15,7 +15,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 text()  { local key="$1"; shift; bites_fmt "prune.$key" ${1+"$@"}; }
 say()   { printf '%s\n' "$(text "$@")"; }
 usage() { say help; }
-die()   { printf '%s\n' "$(text prefix_error message="$*")" >&2; exit 1; }
+die()   { printf '%s\n' "$(text prefix_error message="$*")" >&2; bites_annotate error "bites prune" "$*"; exit 1; }
 
 DELETE=0; PROTO="https"; URL=""
 while [ $# -gt 0 ]; do
