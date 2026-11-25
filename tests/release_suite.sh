@@ -44,7 +44,7 @@ readonly PREFIX=bites-scratch
 ACTION_REPO=${ACTION_REPO:-imdebating/bites}
 GIT_BASE=${GIT_BASE:-https://github.com/}
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-BOOT=$ROOT/scripts/bootstrap.sh
+BOOT=${BITES_BOOTSTRAP_SCRIPT:-$ROOT/scripts/bootstrap.sh}
 BASH_BIN=$(command -v bash)
 
 SHA="" VIS="" KEEP=0 SETUP_ONLY=0 TEARDOWN=0 SKIP_OPT=0 TIMEOUT=300 ALLOW_DIRTY=0
