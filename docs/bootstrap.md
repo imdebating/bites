@@ -4,22 +4,25 @@
 It works for new and existing repositories, and is safe to repeat.
 
     curl -fsSLO https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh
+    curl -fsSLO https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh.sha256
+    sha256sum -c bootstrap.sh.sha256
     bash bootstrap.sh OWNER/REPO main feature
     bash bootstrap.sh --all-branches OWNER/REPO
 
-The first command covers `main` and `feature`. The second covers every branch the repository has at that moment, except `bites/*`, `bites-setup`, and `bites-setup/*`. With no branch names, only the default branch is covered, whatever its name.
+The first of the last two commands covers `main` and `feature`. The second covers every branch the repository has at that moment, except `bites/*`, `bites-setup`, and `bites-setup/*`. With no branch names, only the default branch is covered, whatever its name.
 You cannot combine `--all-branches` with branch names.
 Options go before `OWNER/REPO`, and branch names go after it.
 
 ## Getting the script
 
 The download is the whole installation: every release has one file, `bootstrap.sh`, with everything it needs written into it, and it needs only `bash` and `git` (plus `gh`, if you want it to open pull requests).
-To run it without saving it, pipe it into `bash`; everything after `--` goes to the script:
+The file has no executable bit, so run it with `bash bootstrap.sh`.
+Each release also has `bootstrap.sh.sha256`. Download both files into one folder and run `sha256sum -c bootstrap.sh.sha256` (on macOS, `shasum -a 256 -c bootstrap.sh.sha256`) before you run the script.
+The `latest` link points to the newest release that is not a pre-release. To use an exact version, replace `latest/download` with `download/vX.Y.Z`.
+To skip the saved file, pipe the download into `bash`; everything after `--` goes to the script. This runs code that you have not checked, so use it only if you trust the network and GitHub:
 
     curl -fsSL https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh | bash -s -- OWNER/REPO main feature
 
-The `latest` link points to the newest release that is not a pre-release. To use an exact version, replace `latest/download` with `download/vX.Y.Z`.
-Each release also has `bootstrap.sh.sha256`. To check the download, put both files in one folder and run `sha256sum -c bootstrap.sh.sha256` (on macOS, `shasum -a 256 -c bootstrap.sh.sha256`).
 In a clone of the repository, `scripts/bootstrap.sh` does the same job; the release file is built from it by `scripts/build_bootstrap.py`.
 The rest of this guide calls the script `bootstrap.sh`.
 

@@ -13,10 +13,10 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from gitutil import make_remote
+from gitutil import bootstrap_script, make_remote
 from test_bootstrap_pr import fake_gh, protect, refs, run, setup_refs
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
+SCRIPT = bootstrap_script()
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None or shutil.which("grep") is None,
     reason="needs git, bash and grep",

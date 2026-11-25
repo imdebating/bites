@@ -81,8 +81,10 @@ To run the tests locally (Python 3.11+): create a virtual environment, `python -
 
 Use `imdebating/bites@v1` for the latest 1.x release, an exact tag such as `@v1.4.0`, or a full commit SHA.
 A breaking change gets a new major tag.
-Maintainers: change the code through a pull request, bump the number in the `VERSION` file (the one place the version lives; `bites_tool` and `scripts/bootstrap.sh --version` both read it), tag the release (`vX.Y.Z`), and move the major tag (`git tag -f v1 && git push -f origin v1`), and create the GitHub release for the tag by hand.
-Publishing the release starts the `release assets` workflow (`.github/workflows/release-assets.yml`): it runs the tests, builds `bootstrap.sh` with `python scripts/build_bootstrap.py`, and attaches it with `bootstrap.sh.sha256`; it stops if the tag is not `v` plus the number in `VERSION`.
+Maintainers: change the code through a pull request, bump the number in the `VERSION` file (the one place the version lives; `bites_tool` and `scripts/bootstrap.sh --version` both read it), and write the release notes in `.github/release-notes/vX.Y.Z.md` in the same pull request: the first line is the title and starts with the tag (for example `v1.6.0 - Short title`), then a blank line and the notes.
 If a release changes `templates/bites.yml`, projects re-run `scripts/bootstrap.sh` to update their workflow.
-Before tagging, run the release checks against real GitHub with `bash tests/release_suite.sh`; the steps are in [tests/RELEASE_TESTING.md](../tests/RELEASE_TESTING.md).
+Before you merge, run the release checks against real GitHub with `bash tests/release_suite.sh`; the steps are in [tests/RELEASE_TESTING.md](../tests/RELEASE_TESTING.md).
+Merging the pull request into `main` publishes the release: the `release` workflow (`.github/workflows/release.yml`) starts when `VERSION` changes on `main`, or when you run it from the Actions tab. It runs the tests, builds `bootstrap.sh` and `bootstrap.sh.sha256` with `scripts/build_bootstrap.py`, runs the bootstrap tests against the built file in an empty directory, creates the release as a draft with both files attached, publishes it, and moves the major tag (`v1`) to it.
+It changes nothing if `vX.Y.Z` is already published, because a published release is never replaced.
+To run the bootstrap tests against a built file yourself: `python scripts/build_bootstrap.py -o /tmp/download/bootstrap.sh`, then `BITES_BOOTSTRAP_SCRIPT=/tmp/download/bootstrap.sh python -m pytest tests/test_bootstrap*.py tests/test_preflight.py -q`.
 Update `BITES_INSTRUCTIONS.md` in the same pull request as any change to what the assistant sees.

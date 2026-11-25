@@ -6,6 +6,17 @@ the results.
 """
 import os
 import subprocess
+from pathlib import Path
+
+
+def bootstrap_script():
+    """The bootstrap script the tests run: scripts/bootstrap.sh, or the file that BITES_BOOTSTRAP_SCRIPT names.
+
+    The release workflow sets the variable to the built one-file copy in an otherwise empty directory,
+    so that the whole bootstrap test suite runs against what users download.
+    """
+    override = os.environ.get("BITES_BOOTSTRAP_SCRIPT")
+    return Path(override) if override else Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
 
 
 def sh(args, cwd=None, env=None, check=True):

@@ -4,9 +4,9 @@ import shutil
 from pathlib import Path
 
 import pytest
-from gitutil import branches, make_remote, sh
+from gitutil import bootstrap_script, branches, make_remote, sh
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
+SCRIPT = bootstrap_script()
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
 )

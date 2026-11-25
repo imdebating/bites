@@ -45,13 +45,15 @@ Requirements: GitHub Actions enabled for the repository, and GitHub-hosted Linux
 `ubuntu-24.04`; other runners are untested). The assistant's token needs read access, and write access if it will push
 patch files.
 
-**Shortcut:** `bootstrap.sh` (attached to every release, and in the `scripts/` folder) does steps 1 and 2 for you, on every branch you choose, for new or existing repositories, and is safe to repeat:
+**Shortcut:** `bootstrap.sh`, attached to every release, does steps 1 and 2 for you, on every branch you choose, for new or existing repositories, and is safe to repeat. Download it and its checksum, check it, and run it:
 
     curl -fsSLO https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh
+    curl -fsSLO https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh.sha256
+    sha256sum -c bootstrap.sh.sha256
     bash bootstrap.sh OWNER/REPO main feature
     bash bootstrap.sh --all-branches OWNER/REPO
 
-Both leave every chosen branch ready to build on its next push, without merging anything (your local checkouts only need a normal `git pull`). See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
+On macOS, check with `shasum -a 256 -c bootstrap.sh.sha256`. Either of the last two commands leaves every chosen branch ready to build on its next push, without merging anything (your local checkouts only need a normal `git pull`). See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
 
 ### 1. Add the workflow to each branch you want mirrored
 
