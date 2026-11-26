@@ -109,8 +109,8 @@ def test_glob_matches_root_and_nested():
     assert core.glob_to_re(".git/**").match(".git/config")
 
 
-def test_denied_names_never_chunked_even_if_included(tmp_path):
-    """Secret-like names (.env*) are never chunked even when an include glob matches them."""
+def test_denied_names_never_processed_even_if_included(tmp_path):
+    """Secret-like names (.env*) are never processed even when an include glob matches them."""
     src, cfg, out = make_repo(tmp_path, {".env": "S" * 500, "a/.env.local": "S" * 500, "ok.md": "x" * 500})
     assert build(src, cfg, out) == 0
     assert list(manifest(out)["files"]) == ["ok.md"]
@@ -125,7 +125,7 @@ def test_roundtrip_real_limit(tmp_path):
     assert build(src, cfg, out) == 0
     assert verify(src, cfg, out) == 0
     man = manifest(out)["files"]
-    # At or below the limit: not chunked, no entry.
+    # At or below the limit: not processed, no entry.
     assert "f26999.md" not in man and "f27000.md" not in man
     assert man["f27001.md"]["parts"] == 2
     assert man["f54000.md"]["parts"] == 2  # exact multiple: no empty third part

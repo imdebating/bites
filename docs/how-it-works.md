@@ -13,7 +13,7 @@ A build usually finishes well under a minute.
 ## What is on the output branch
 
     bites/main
-    ├── manifest.json        index of every chunked file
+    ├── manifest.json        index of every processed file
     ├── last_build.json      result of the latest run
     └── parts/
         └── docs/guide.md/
@@ -21,10 +21,10 @@ A build usually finishes well under a minute.
             ├── 0002-of-0003.txt
             └── 0003-of-0003.txt
 
-- A file at or under `max_chars` characters is not chunked and is read directly.
+- A file at or under `max_chars` characters is not output and is read directly.
 - A longer file is cut at exact multiples of `max_chars` characters (not at line or word boundaries); the last part holds the remainder.
-- Each part is a header line, the body, and a footer line, so a truncated read is detectable: `<<<BITE file=... part=2/3 chars=27000 start_line=412 sha256=... >>>` ... `<<<END BITE 2/3>>>`.
-- `manifest.json` lists each chunked file with its git blob SHA, size, SHA-256, part count and the first line of each part, and records the `max_chars` in use. `last_build.json` has `status` (`ok` or `error`), the source commit, which files changed, and any patch results.
+- Each part file is a header line, the body, and a footer line, so a truncated read is detectable: `<<<BITE file=... part=2/3 chars=27000 start_line=412 sha256=... >>>` ... `<<<END BITE 2/3>>>`.
+- `manifest.json` lists each outputted file with its git blob SHA, size, SHA-256, part count and the first line of each part, and records the `max_chars` in use. `last_build.json` has `status` (`ok` or `error`), the source commit, which files changed, and any patch results.
 - Builds are incremental: a file is re-split only when its git blob changes.
 - If a build fails, the previous bites stay as they were and only `last_build.json` is updated with the error.
 
@@ -32,7 +32,7 @@ Which files are output is set by `include` and `exclude` globs; see [Configurati
 
 ## Editing large files with patches
 
-The assistant never rewrites a segmented file directly.
+The assistant never rewrites a processed file directly.
 It commits a patch file to `.bites-patches/` on the source branch:
 
     @@@ FILE path/to/file.md
@@ -51,7 +51,7 @@ The full grammar is in [BITES_INSTRUCTIONS.md](../BITES_INSTRUCTIONS.md) and the
 
 ## Cleaning up output branches
 
-A output branch holds only derived data, so deleting one is cheap: recreate the branch and the next push rebuilds it.
+An output branch holds only derived data, so deleting one is cheap: recreate the branch and the next push rebuilds it.
 
 - **Automatic.** When a branch is deleted, by hand or by the repository's "Automatically delete head branches" setting after a pull request merge, the `cleanup` job deletes `bites/<branch>`.
   It skips tags, the default branch, `bites/*` branches, a branch that exists again by the time it runs, and branches that have no output branch.

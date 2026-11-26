@@ -2,16 +2,16 @@
 
 manifest.json (sorted keys, 2-space indent, no timestamps)
     schema           1
-    source_branch    branch the parts were built from
-    source_commit    commit of that branch the parts were built from
+    source_branch    branch from which the output was processed
+    source_commit    commit on the source_branch the files were built from
     max_chars        the setting used (a change forces a full rebuild)
     files            {source path: {blob_sha, bytes, chars, sha256, parts,
-                                    start_lines[]}} for CHUNKED files only
+                                    start_lines[]}} for processed files only
     skipped          {source path: "not_utf8"} for matched files that could not be read
 
 last_build.json
     status "ok":     source_branch, source_commit, changed{path: chars/parts before and
-                     after}, removed[], unchanged_chunked, patches[] (per patch section:
+                     after}, removed[], unchanged_bite[], patches[] (per patch section:
                      patch, file, lines_added, lines_removed, operations)
                      truncated_report: true is added when the report would not fit in
                      one read: patches are cut to the first 20 and, if that is not
@@ -56,7 +56,7 @@ DETAIL_LINES, DETAIL_CHARS = 3, 500
 def cmd_build(a):
     """`build`: (re)generate parts, manifest.json and last_build.json under --out.
 
-    Steps: choose the files to chunk; for each, rebuild its parts if it is new or
+    Steps: choose the files to process; for each, rebuild its parts if it is new or
     changed (or a full rebuild was requested), otherwise reuse the existing parts;
     delete every file under parts/ that is no longer expected; write the manifest
     (failing if it exceeds `manifest_max_chars`); write last_build.json including the
@@ -116,7 +116,7 @@ def cmd_build(a):
             "sha256": sha256_hex(data), "parts": n, "start_lines": starts,
         }
 
-    # Files that were chunked before but are not now (deleted, shrunk, excluded).
+    # Files that were processed before but are not now (deleted, shrunk, excluded).
     removed = sorted(set(prev_files) - set(files))
     # Delete stale part files (old numbering, removed sources), then empty directories.
     parts_root = out / "parts"
@@ -147,7 +147,7 @@ def cmd_build(a):
     report = {
         "schema": SCHEMA, "status": "ok", "source_branch": a.source_branch,
         "source_commit": a.source_commit, "changed": changed, "removed": removed,
-        "unchanged_chunked": unchanged, "patches": patches,
+        "unchanged_bite": unchanged, "patches": patches,
     }
     rtext = dumps(report)
     if len(rtext) > MM:  # keep last_build.json readable in one call

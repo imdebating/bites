@@ -17,7 +17,7 @@ SETTING_LINE = re.compile(r"^\s+(max-chars|read-cap|include|exclude):", re.MULTI
 
 
 def run(bare, env, *extra):
-    """Run bootstrap.sh against the bare remote for owner/repo, mirroring main."""
+    """Run bootstrap.sh against the bare remote for owner/repo, processing main."""
     return sh(
         ["bash", str(SCRIPT), "--url", str(bare), "--action-from", "imdebating/bites", *extra, "owner/repo", "main"],
         env=env,

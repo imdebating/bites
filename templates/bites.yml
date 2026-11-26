@@ -15,7 +15,7 @@
 # bootstrap script as -c/--config KEY=VALUE, so that running it again keeps them.
 #
 # Two jobs:
-#   bites    on every push (and by hand): segment large files and apply patch files.
+#   bites    on every push (and by hand): process large files and apply patch files.
 #   cleanup  when a branch is deleted: delete that branch's bites/<branch> output branch.
 #
 # Opt-in per branch: nothing is built unless a branch named bites/<branch> exists.
@@ -38,7 +38,7 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: Rebuild and re-segment every large file instead of only changed ones
+        description: Rebuild and re-process every large file instead of only changed ones
         type: boolean
         default: false
 

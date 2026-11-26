@@ -310,7 +310,7 @@ fi
 # ---- 3. the bites/<branch> output branches ------------------------------------------------
 # `git mktree` with no input writes and prints the empty tree; a commit on it is an
 # "orphan" root with no files, which is what the first build expects to find. They are made
-# before the workflow, so the first run that the workflow's own push starts finds its mirror.
+# before the workflow, so the first run that the workflow's own push starts finds its output branch.
 EMPTY="$(git mktree </dev/null)"
 for b in "${SEL[@]}"; do
   if remote_has_branch "bites/$b"; then
@@ -459,7 +459,7 @@ if [ "$DRY" = 0 ]; then
 fi
 
 # ---- 6. report -----------------------------------------------------------------------------------
-# One line per branch. A branch is ready only when its workflow and (if selected) its mirror are.
+# One line per branch. A branch is ready only when its workflow and (if selected) its outputs are.
 describe() { # describe KEY - a short word for the state of one piece of work
   case "$(state_of "$1")" in
     installed|created) say status_installed ;;

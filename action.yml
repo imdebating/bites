@@ -1,4 +1,4 @@
-# action.yml - composite action: segment large text files as exact parts (bites) and apply patch files
+# action.yml - composite action: output large text files as exact parts (bites) and apply patch files
 #
 # Used from a project as ONE step of a job (see templates/bites.yml):
 #     - uses: imdebating/bites@v1
@@ -21,7 +21,7 @@
 #   * `permissions: contents: write` (to push to <branch> and to bites/<branch>)
 #
 # What one run does (a single run on purpose: pushes made with GITHUB_TOKEN do not start
-# new workflow runs, so the patch commit cannot trigger a second run that does the chunking):
+# new workflow runs, so the patch commit cannot trigger a second run that does the splitting):
 #   1. gate        - stop quietly unless branch bites/<branch> already exists (opt-in)
 #   2. apply       - apply .bites-patches/*.patch to the source tree, all or nothing
 #   3. commit      - commit the applied patches (and patch-file deletions) to <branch>
@@ -46,11 +46,11 @@ author: imdebating
 
 inputs:
   full:
-    description: "'true' rebuilds and re-segments every large file instead of only changed ones"
+    description: "'true' rebuilds and re-outputs every large file instead of only changed ones"
     required: false
     default: 'false'
   max-chars:
-    description: "Largest bite and the size above which a file is segmented, in characters. Empty keeps the value from bites.toml or the default (27000)"
+    description: "Largest bite and the size above which a file is split, in characters. Empty keeps the value from bites.toml or the default (27000)"
     required: false
     default: ''
   read-cap:

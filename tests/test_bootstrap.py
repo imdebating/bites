@@ -48,7 +48,7 @@ def show(bare, env, ref, path):
     return sh(["git", "show", f"{ref}:{path}"], cwd=bare, env=env).stdout
 
 
-def test_installs_workflow_and_creates_mirror_branches(remote):
+def test_installs_workflow_and_creates_output_branches(remote):
     """The caller lands on main with its placeholders filled in; bites/main and bites/dev exist."""
     bare, env = remote
     run(bare, env, "owner/repo", "main", "dev")
@@ -61,7 +61,7 @@ def test_installs_workflow_and_creates_mirror_branches(remote):
 
 
 def test_default_branch_when_none_given(remote):
-    """With no branch arguments only the default branch is mirrored."""
+    """With no branch arguments only the default branch is processed."""
     bare, env = remote
     run(bare, env, "owner/repo")
     r = refs(bare, env)

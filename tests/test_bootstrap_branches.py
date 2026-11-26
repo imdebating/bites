@@ -1,7 +1,7 @@
 """Tests for bootstrap.sh across several branches: --all-branches, ordering, failures, --protected.
 
 The contract under test: one bootstrap command installs the caller workflow and creates the
-mirror for every requested branch, without merging anything, and reports success only when
+output branch for every requested branch, without merging anything, and reports success only when
 the remote really holds all of it. Everything runs against local bare repositories.
 """
 import shutil
@@ -85,7 +85,7 @@ def test_all_branches_covers_every_branch_including_slash_names(tmp_path):
 
 
 def test_all_branches_skips_output_and_setup_branches(tmp_path):
-    bare, env = make_remote(tmp_path, branches=("dev", "bites-setup"), mirrors=("dev",))
+    bare, env = make_remote(tmp_path, branches=("dev", "bites-setup"), output_branches=("dev",))
     before = refs(bare, env)
     r = run(bare, env, "--all-branches")
     assert r.returncode == 0, r.stdout + r.stderr
@@ -142,7 +142,7 @@ def test_unselected_branches_are_untouched_and_default_gets_only_the_caller(tmp_
     assert "No output branch" in r.stdout
 
 
-def test_mirror_branches_exist_before_the_workflow_is_pushed(tmp_path):
+def test_output_branches_exist_before_the_workflow_is_pushed(tmp_path):
     bare, env = make_remote(tmp_path, branches=("dev",))
     log = tmp_path / "order.log"
     install_hook(bare, "update", f'echo "$1" >> "{log}"\nexit 0\n')
@@ -153,8 +153,8 @@ def test_mirror_branches_exist_before_the_workflow_is_pushed(tmp_path):
         assert order.index(f"refs/heads/bites/{b}") < order.index(f"refs/heads/{b}")
 
 
-def test_existing_mirrors_are_left_alone(tmp_path):
-    bare, env = make_remote(tmp_path, branches=("dev",), mirrors=("dev",))
+def test_existing_output_branches_are_left_alone(tmp_path):
+    bare, env = make_remote(tmp_path, branches=("dev",), output_branches=("dev",))
     before = refs(bare, env)["refs/heads/bites/dev"]
     assert run(bare, env, "main", "dev").returncode == 0
     assert refs(bare, env)["refs/heads/bites/dev"] == before

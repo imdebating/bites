@@ -15,7 +15,7 @@ SOURCE FILE SELECTION
     matches both `README.md` and `a/b/c.md`.
 
 SPLITTING RULE
-    A file whose length is <= `max_chars` is NOT chunked and produces no output.
+    A file whose length is <= `max_chars` is NOT processed and produces no output.
     A longer file is cut at exact multiples of `max_chars` code points (no attempt to
     respect lines, words or syntax); the last part holds the remainder, so a file of
     `max_chars + 1` characters yields parts of `max_chars` and 1.
@@ -36,7 +36,7 @@ PART FILE FORMAT (exact)
     end of a file rewrites only the last part(s).
 
 OUTPUT LAYOUT (the tree of the `bites/<branch>` branch)
-    manifest.json                 index of every chunked file (see build.py)
+    manifest.json                 index of every processed file (see build.py)
     last_build.json               result of the latest run (see build.py)
     parts/<source path>/NNNN-of-MMMM.txt
                                   one file per part; NNNN = part number, MMMM = total.
@@ -54,7 +54,7 @@ CONFIGURATION
          wins over the environment; repeated `--config include=...` / `exclude=...` options
          accumulate into one list.
     Every key is optional, so a project's bites.toml can be one line long.
-    max_chars            no-chunk threshold and maximum part body        (default 27000)
+    max_chars            do-not-process threshold and maximum part size  (default 27000)
     read_cap             measured per-result cap                         (default 28000)
     include, exclude     glob lists (defaults: DEFAULT_INCLUDE and DEFAULT_EXCLUDE
                          below). A list that is given replaces the default list; an
@@ -83,12 +83,12 @@ from .strings import message
 # ignored and everything is rebuilt.
 SCHEMA = 1
 
-# File names (matched against the last path component) that are never chunked, even if
+# File names (matched against the last path component) that are never processed, even if
 # an include glob matches them. They are the usual homes of secrets.
 DENY_BASENAMES = (".env*", "*.pem", "*.key", "id_rsa*")
 
-# Paths that are never mirrored and cannot be added back by any setting: git internals,
-# workflow files, patch files (mirroring them would only add noise) and the configuration.
+# Paths that are never processed and cannot be added back by any setting: git internals,
+# workflow files, patch files (outputting them would only add noise) and the configuration.
 ALWAYS_EXCLUDE = (".git/**", ".github/**", ".bites-patches/**", "bites.toml")
 
 # Which tracked files are eligible when a configuration does not say. Keep in step with

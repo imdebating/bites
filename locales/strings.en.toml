@@ -178,13 +178,13 @@ problem_settings_removed = "  - {branch}: the existing {workflow_file} sets bite
 # scripts/bootstrap.sh:354 [echo]
 setup_stopped = "Setup stopped before I changed anything:"
 # scripts/bootstrap.sh:365 [note]  placeholders: branch
-output_branch_exists = "The output branch {branch} already exists."
+output_branch_exists = "The bites output branch {branch} already exists."
 # scripts/bootstrap.sh:369 [note]  placeholders: branch
-output_branch_creating = "I'm creating the output branch {branch}."
+output_branch_creating = "I'm creating the bites output branch {branch}."
 # scripts/bootstrap.sh:373 [set_state] placeholders: branch
-output_branch_created_elsewhere = "The output branch {branch} was just created by someone else."
+output_branch_created_elsewhere = "The bites output branch {branch} was just created by someone else."
 # scripts/bootstrap.sh:375 [set_state]  placeholders: branch
-output_branch_create_failed = "I could not create the output branch {branch}."
+output_branch_create_failed = "I could not create the bites output branch {branch}."
 # scripts/bootstrap.sh:403 [note]  placeholders: branch, setup_branch
 pr_none_open = "I could not find an open pull request from {setup_branch} into {branch}, so I will open one now."
 # scripts/bootstrap.sh:405 [commit or pull request text]  placeholders: branch
@@ -300,9 +300,9 @@ heading_branch = "Branch"
 # scripts/bootstrap.sh [added by hand: the extractor missed it]
 heading_workflow = "Workflow"
 # scripts/bootstrap.sh [added by hand: the extractor missed it]
-heading_output_branch = "Output Branch"
+heading_output_branch = "bites Output Branch"
 # scripts/bootstrap.sh [echo]
-no_output_branch_row = "No output branch"
+no_output_branch_row = "No bites Output Branch"
 # scripts/bootstrap.sh [echo]  placeholders: branch, detail
 detail_workflow = "    workflow:{branch}: {detail}"
 # scripts/bootstrap.sh [echo]  placeholders: branch, detail
@@ -326,13 +326,13 @@ something it should not:
   * The branch is not the default branch and not itself a bites/* branch
   * The branch does not exist again (deleted and re-created, or restored, in the meantime)
   * An output branch named bites/<branch> exists
-An output branch holds only derived data, so deleting one is cheap to undo: run
+A bites output branch holds only derived data, so deleting one is cheap to undo: run
 scripts/bootstrap.sh for the branch again and the next push rebuilds it.
 '''
 # scripts/cleanup.sh:29 [note]  placeholders: ref_type
 not_a_branch = "A {ref_type} was deleted, not a branch; there is nothing to do."
 # scripts/cleanup.sh:30 [note]  placeholders: branch
-output_branch = "{branch} is an output branch; there is nothing to do."
+output_branch = "{branch} is a bites output branch; there is nothing to do."
 # scripts/cleanup.sh:31 [note]  placeholders: branch
 default_branch = "{branch} is the default branch; there is nothing to do."
 # scripts/cleanup.sh:33 [note]  placeholders: branch, output_branch
@@ -364,7 +364,7 @@ usage: scripts/prune.sh [--delete] [--ssh] [--url URL] OWNER/REPO
   --url URL  use this repository URL instead (used by the tests)
   -h, --help show this text
 
-An orphaned output branch is one whose source branch no longer exists, such as bites/feature-x
+An orphaned bites output branch is one whose source branch no longer exists, such as bites/feature-x
 when feature-x has been deleted.
 Exit Status: 0: Success, no orphans found; non-zero: Bad arguments or git errors.
 '''
@@ -397,9 +397,9 @@ commit_build = "bites: {commit}"
 # action.yml:44 [yaml]
 description = "MCP read limits truncate large files. On its own branch, bites copies files as exact, size-capped bites; patches apply edits"
 # action.yml:49 [yaml]
-bite_rebuild = "'true' rebuilds and re-segments every large file instead of only changed ones"
+bite_rebuild = "'true' reprocesses and re-outputs every large file instead of only changed ones"
 # action.yml:53 [yaml]
-bite_max_chars = "Largest bite and the size above which a file is segmented, in characters. Empty keeps the value from bites.toml or the default (27000)"
+bite_max_chars = "Largest bite and the size above which a file is processed, in characters. Empty keeps the value from bites.toml or the default (27000)"
 # action.yml:57 [yaml]
 bite_read_cap = "The connector's per-result limit in characters; a bite plus the connector's wrapper must fit under it. Empty keeps the value from bites.toml or the default (28000)"
 # action.yml:61 [yaml]
@@ -411,7 +411,7 @@ step_checkout_source = "Check out source branch"
 # action.yml:81 [yaml step name; from list_messages, the extractor missed it]
 step_gate = "Opt-in gate and settings"
 # action.yml:105 [yaml step name; from list_messages, the extractor missed it]
-step_checkout_bites = "Check out output branch"
+step_checkout_bites = "Check out bites output branch"
 # action.yml:112 [yaml step name; from list_messages, the extractor missed it]
 step_python = "Set up Python"
 # action.yml:120 [yaml step name; from list_messages, the extractor missed it]
@@ -425,7 +425,7 @@ step_verify = "Verify round trip"
 # action.yml:178 [yaml step name; from list_messages, the extractor missed it]
 step_record_failure = "Record failure (leave bites untouched, publish only last_build.json)"
 # action.yml:189 [yaml step name; from list_messages, the extractor missed it]
-step_publish = "Publish to output branch"
+step_publish = "Publish to bites output branch"
 
 [cleanup_action]
 # cleanup/action.yml:47 [echo]  placeholders: action_path, script
@@ -439,7 +439,7 @@ input_dry_run = "'true' reports what would be deleted without deleting it"
 # cleanup/action.yml:29 [yaml step name; from list_messages, the extractor missed it]
 step_checkout = "Check out repository"
 # cleanup/action.yml:36 [yaml step name; from list_messages, the extractor missed it]
-step_delete = "Delete the output branch"
+step_delete = "Delete the bites output branch"
 
 [template]
 # templates/bites.yml [comment block copied into every installed workflow]
@@ -461,7 +461,7 @@ exclude (see the README). They override a bites.toml in the project. Give them t
 bootstrap script as -c/--config KEY=VALUE, so that running it again keeps them.
 
 Two jobs:
-  bites    on every push (and by hand): segment large files and apply patch files.
+  bites    on every push (and by hand): process large files and apply patch files.
   cleanup  when a branch is deleted: delete that branch's bites/<branch> output branch.
 
 Opt-in per branch: nothing is built unless a branch named bites/<branch> exists.
@@ -475,7 +475,7 @@ Push to <branch> (applied patches), to bites/<branch> (bites) and delete bites/<
 (cleanup). Nothing else.
 '''
 # templates/bites.yml:41 [yaml]
-input_full = "Rebuild and re-segment every large file instead of only changed ones"
+input_full = "Reprocess and re-output every large file instead of only changed ones"
 
 [build]
 # bites_tool/build.py:56 [print]  placeholders: warning
@@ -483,7 +483,7 @@ warning = "bites build: Warning: {warning}"
 # bites_tool/build.py:130 [raise]  placeholders: chars, limit
 manifest_too_big = "manifest.json is {chars} chars, over manifest_max_chars={limit}; too many large files for one manifest"
 # bites_tool/build.py:162 [print]  placeholders: files, rebuilt, removed
-build_summary = "bites build: {files} segmented file(s), {rebuilt} rebuilt, {removed} removed"
+build_summary = "bites build: {files} processed file(s), {rebuilt} rebuilt, {removed} removed"
 # bites_tool/build.py:181 [raise]
 manifest_unreadable = "manifest.json missing or unreadable"
 # bites_tool/build.py:186 [append]  placeholders: name
@@ -513,7 +513,7 @@ verify_failed = "Verification failed: {errors}{more}"
 # bites_tool/build.py:236 [print]  placeholders: files, bites
 verify_ok = "bites verify: ok, {files} file(s), {bites} bite(s)"
 # bites_tool/build.py:248 [raise]  placeholders: file
-file_not_segmented = "{file} is not segmented in this manifest"
+file_not_segmented = "{file} is not processed in this manifest"
 # bites_tool/build.py:271 [other]
 failure_see_log = "See the workflow run log"
 # bites_tool/build.py [new: a step that ran outside the bites tool failed]  placeholders: branch, detail
@@ -523,7 +523,7 @@ commit_rejected_protected = "The applied patches could not be pushed to {branch}
 
 [cli]
 # bites_tool/cli.py:1 [help (module docstring)]
-description = "bites - Segment large text files into exact, reversible, size-capped bites."
+description = "bites - Output large text files into exact, reversible, size-capped bites."
 # bites_tool/cli.py:38 [help]
 help_status = "On failure, write a JSON error record to this path"
 # bites_tool/cli.py:44 [help]

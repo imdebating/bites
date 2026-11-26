@@ -1,9 +1,9 @@
-"""bites_tool - mirror large text files as exact, size-capped parts, and edit them by patch.
+"""bites_tool - output large text files as exact, size-capped parts, and edit them by patch.
 
 WHY THIS EXISTS
     The GitHub connector used in chat cuts any single tool result at about 28,000
     characters (measured), after adding an 82-character wrapper line in front of the
-    content. Larger files arrive truncated. This package mirrors every large file as a
+    content. Larger files arrive truncated. This package outputs every large file as a
     series of small "part" files on a separate branch, so each part can be read whole,
     and it applies edits to large files from small patch files, so a whole large file
     never has to be re-typed.
