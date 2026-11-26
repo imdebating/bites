@@ -11,6 +11,11 @@ from pathlib import Path
 import pytest
 from gitutil import bootstrap_script, make_remote, sh
 
+import tomllib
+
+CATALOG = tomllib.loads(
+    (Path(__file__).resolve().parent.parent / "locales" / "strings.en.toml").read_text(encoding="utf-8")
+)
 SCRIPT = bootstrap_script()
 WF = ".github/workflows/bites.yml"
 pytestmark = pytest.mark.skipif(
@@ -138,7 +143,7 @@ def test_unselected_branches_are_untouched_and_default_gets_only_the_caller(tmp_
     assert "refs/heads/bites/main" not in got and "refs/heads/bites/other" not in got
     assert "refs/heads/bites/dev" in got
     assert show(bare, env, "main", WF) == show(bare, env, "dev", WF)
-    assert "No output branch" in r.stdout
+    assert CATALOG["bootstrap"]["no_output_branch_row"] in r.stdout
 
 
 def test_output_branches_exist_before_the_workflow_is_pushed(tmp_path):

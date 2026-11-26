@@ -107,7 +107,7 @@ def test_artifact_installs_exact_workflow_and_is_idempotent(artifact, tmp_path):
     assert refs(bare, env) == before
 
 
-def test_artifact_rebuild_and_checksum_match(artifact, tmp_path):
+def test_artifact_reprocessing_and_checksum_match(artifact, tmp_path):
     rebuilt = tmp_path / "rebuilt" / "bootstrap.sh"
     sh([sys.executable, str(ROOT / "scripts" / "build_bootstrap.py"), "-o", str(rebuilt), "--check-tag", f"v{VERSION}"])
     assert rebuilt.read_bytes() == artifact.read_bytes()

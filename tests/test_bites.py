@@ -193,8 +193,8 @@ def test_header_quotes_awkward_paths(tmp_path):
 
 
 # ---------------------------------------------------- replacement behaviour
-def test_rebuild_is_deterministic_and_incremental(tmp_path):
-    """Rebuilding unchanged input is byte-identical; editing the tail rewrites only the last part."""
+def test_reprocessing_is_deterministic_and_incremental(tmp_path):
+    """Reprocessing unchanged input is byte-identical; editing the tail rewrites only the last part."""
     src, cfg, out = make_repo(tmp_path, {"big.md": "a" * 250, "other.md": "b" * 250})
     build(src, cfg, out)
     first = tree(out)
@@ -250,7 +250,7 @@ def test_deleted_source_removes_parts(tmp_path):
     assert verify(src, cfg, out) == 0
 
 
-def test_full_flag_and_max_chars_change_rebuild_everything(tmp_path):
+def test_full_flag_and_max_chars_change_reprocess_everything(tmp_path):
     """Changing max_chars invalidates the previous output and re-splits at the new size."""
     src, cfg, out = make_repo(tmp_path, {"big.md": "a" * 250})
     build(src, cfg, out)

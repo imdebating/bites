@@ -69,7 +69,7 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: Rebuild and re-output every large file instead of only changed ones
+        description: Reprocess and re-output every large file instead of only changed ones
         type: boolean
         default: false
 

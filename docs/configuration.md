@@ -57,7 +57,7 @@ Git internals, `.github/`, `.bites-patches/` and `bites.toml` are never processe
 
 | Action | Input | Default | Meaning |
 |----|----|----|----|
-| `imdebating/bites` | `full` | `false` | `true` rebuilds and re-splits every large file |
+| `imdebating/bites` | `full` | `false` | `true` reprocesses and re-outputs every large file |
 | `imdebating/bites` | `max-chars`, `read-cap`, `include`, `exclude` | empty | Override the settings above; empty keeps the value from `bites.toml` or the default |
 | `imdebating/bites/cleanup` | `dry-run` | `false` | `true` only logs what it would delete |
 

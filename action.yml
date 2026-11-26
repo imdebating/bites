@@ -46,11 +46,11 @@ author: imdebating
 
 inputs:
   full:
-    description: "'true' rebuilds and re-outputs every large file instead of only changed ones"
+    description: "'true' reprocesses and re-outputs every large file instead of only changed ones"
     required: false
     default: 'false'
   max-chars:
-    description: "Largest bite and the size above which a file is split, in characters. Empty keeps the value from bites.toml or the default (27000)"
+    description: "Largest bite and the size above which a file is processed, in characters. Empty keeps the value from bites.toml or the default (27000)"
     required: false
     default: ''
   read-cap:

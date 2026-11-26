@@ -4,7 +4,7 @@ manifest.json (sorted keys, 2-space indent, no timestamps)
     schema           1
     source_branch    branch from which the output was processed
     source_commit    commit on the source_branch the files were built from
-    max_chars        the setting used (a change forces a full rebuild)
+    max_chars        the setting used (a change forces a full reprocessing)
     files            {source path: {blob_sha, bytes, chars, sha256, parts,
                                     start_lines[]}} for processed files only
     skipped          {source path: "not_utf8"} for matched files that could not be read
@@ -23,7 +23,7 @@ last_build.json
 INCREMENTAL BUILDS
     A file is rebuilt only when its git blob SHA differs from the manifest, its part
     count changed, or a part file is missing. `--full`, a missing/foreign manifest, or a
-    changed `max_chars` rebuilds everything. After each build any file under `parts/`
+    changed `max_chars` reprocesses everything. After each build any file under `parts/`
     that is not an expected part is deleted, so growing, shrinking, renaming or deleting
     a source file replaces its parts cleanly. Part names and headers embed the total
     count, so a change in the number of parts rewrites all parts of that file.
@@ -56,8 +56,8 @@ DETAIL_LINES, DETAIL_CHARS = 3, 500
 def cmd_build(a):
     """`build`: (re)generate parts, manifest.json and last_build.json under --out.
 
-    Steps: choose the files to process; for each, rebuild its parts if it is new or
-    changed (or a full rebuild was requested), otherwise reuse the existing parts;
+    Steps: choose the files to process; for each, reprocess its parts if it is new or
+    changed (or a full reprocessing was requested), otherwise reuse the existing parts;
     delete every file under parts/ that is no longer expected; write the manifest
     (failing if it exceeds `manifest_max_chars`); write last_build.json including the
     patch report from `apply` when one is given.
@@ -70,7 +70,7 @@ def cmd_build(a):
     src, out = Path(a.src), Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     prev = load_manifest(out)
-    # Anything that makes the previous output untrustworthy forces a full rebuild.
+    # Anything that makes the previous output untrustworthy forces a full reprocessing.
     full = bool(a.full) or prev is None or prev.get("schema") != SCHEMA or prev.get("max_chars") != M
     prev_files = {} if prev is None else prev.get("files", {})
 
@@ -110,7 +110,7 @@ def cmd_build(a):
                     "parts_after": n,
                 }
             else:
-                unchanged += 1  # full rebuild of a file whose content did not change
+                unchanged += 1  # full reprocessing of a file whose content did not change
         files[rel] = {
             "blob_sha": blob, "bytes": len(data), "chars": len(text),
             "sha256": sha256_hex(data), "parts": n, "start_lines": starts,

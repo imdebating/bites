@@ -132,10 +132,10 @@ Only the workflow file /.github/workflows/bites.yml will be added.' ;;
     bootstrap.problem_not_bites_workflow) BITES_TEXT='  - {branch}: I found the workflow file {workflow_file}, but it is not a bites workflow. Move it aside, or merge its jobs by hand.' ;;
     bootstrap.problem_settings_removed) BITES_TEXT='  - {branch}: the existing {workflow_file} sets bites options (max-chars, read-cap, include, or exclude) that this run would remove; give them again with --config, or delete them from the workflow first.' ;;
     bootstrap.setup_stopped) BITES_TEXT='Setup stopped before I changed anything:' ;;
-    bootstrap.output_branch_exists) BITES_TEXT='The output branch {branch} already exists.' ;;
-    bootstrap.output_branch_creating) BITES_TEXT='I'\''m creating the output branch {branch}.' ;;
-    bootstrap.output_branch_created_elsewhere) BITES_TEXT='The output branch {branch} was just created by someone else.' ;;
-    bootstrap.output_branch_create_failed) BITES_TEXT='I could not create the output branch {branch}.' ;;
+    bootstrap.output_branch_exists) BITES_TEXT='The bites output branch {branch} already exists.' ;;
+    bootstrap.output_branch_creating) BITES_TEXT='I'\''m creating the bites output branch {branch}.' ;;
+    bootstrap.output_branch_created_elsewhere) BITES_TEXT='The bites output branch {branch} was just created by someone else.' ;;
+    bootstrap.output_branch_create_failed) BITES_TEXT='I could not create the bites output branch {branch}.' ;;
     bootstrap.pr_none_open) BITES_TEXT='I could not find an open pull request from {setup_branch} into {branch}, so I will open one now.' ;;
     bootstrap.pr_title) BITES_TEXT='Add bites workflow to {branch}' ;;
     bootstrap.pr_body) BITES_TEXT='Add the bites workflow ({action}@{version}). The diff should show one added file, {workflow_file}. If it shows anything else, do not merge it: cancel the pull request and run the bootstrap script again.' ;;
@@ -195,8 +195,8 @@ a push against a protected branch makes me open a pull request.' ;;
     bootstrap.summary_title) BITES_TEXT='Summary' ;;
     bootstrap.heading_branch) BITES_TEXT='Branch' ;;
     bootstrap.heading_workflow) BITES_TEXT='Workflow' ;;
-    bootstrap.heading_output_branch) BITES_TEXT='Output Branch' ;;
-    bootstrap.no_output_branch_row) BITES_TEXT='No output branch' ;;
+    bootstrap.heading_output_branch) BITES_TEXT='bites Output Branch' ;;
+    bootstrap.no_output_branch_row) BITES_TEXT='No bites Output Branch' ;;
     bootstrap.detail_workflow) BITES_TEXT='    workflow:{branch}: {detail}' ;;
     bootstrap.detail_output_branch) BITES_TEXT='    output:{branch}: {detail}' ;;
     cleanup.help) BITES_TEXT='cleanup.sh - Delete the bites/<branch> output branch after <branch> itself has been deleted.
@@ -214,11 +214,11 @@ something it should not:
   * The branch is not the default branch and not itself a bites/* branch
   * The branch does not exist again (deleted and re-created, or restored, in the meantime)
   * An output branch named bites/<branch> exists
-An output branch holds only derived data, so deleting one is cheap to undo: run
-scripts/bootstrap.sh for the branch again and the next push rebuilds it.
+A bites output branch holds only derived data, so deleting one is cheap to undo: run
+scripts/bootstrap.sh for the branch again and the next push reprocesses it.
 ' ;;
     cleanup.not_a_branch) BITES_TEXT='A {ref_type} was deleted, not a branch; there is nothing to do.' ;;
-    cleanup.output_branch) BITES_TEXT='{branch} is an output branch; there is nothing to do.' ;;
+    cleanup.output_branch) BITES_TEXT='{branch} is a bites output branch; there is nothing to do.' ;;
     cleanup.default_branch) BITES_TEXT='{branch} is the default branch; there is nothing to do.' ;;
     cleanup.branch_exists_again) BITES_TEXT='{branch} exists again; keeping {output_branch}.' ;;
     cleanup.no_output_branch) BITES_TEXT='No {output_branch} branch exists; there is nothing to do.' ;;
@@ -238,7 +238,7 @@ usage: scripts/prune.sh [--delete] [--ssh] [--url URL] OWNER/REPO
   --url URL  use this repository URL instead (used by the tests)
   -h, --help show this text
 
-An orphaned output branch is one whose source branch no longer exists, such as bites/feature-x
+An orphaned bites output branch is one whose source branch no longer exists, such as bites/feature-x
 when feature-x has been deleted.
 Exit Status: 0: Success, no orphans found; non-zero: Bad arguments or git errors.
 ' ;;

@@ -327,7 +327,7 @@ something it should not:
   * The branch does not exist again (deleted and re-created, or restored, in the meantime)
   * An output branch named bites/<branch> exists
 A bites output branch holds only derived data, so deleting one is cheap to undo: run
-scripts/bootstrap.sh for the branch again and the next push rebuilds it.
+scripts/bootstrap.sh for the branch again and the next push reprocesses it.
 '''
 # scripts/cleanup.sh:29 [note]  placeholders: ref_type
 not_a_branch = "A {ref_type} was deleted, not a branch; there is nothing to do."
@@ -411,7 +411,7 @@ step_checkout_source = "Check out source branch"
 # action.yml:81 [yaml step name; from list_messages, the extractor missed it]
 step_gate = "Opt-in gate and settings"
 # action.yml:105 [yaml step name; from list_messages, the extractor missed it]
-step_checkout_bites = "Check out bites output branch"
+step_checkout_bites = "Check out output branch"
 # action.yml:112 [yaml step name; from list_messages, the extractor missed it]
 step_python = "Set up Python"
 # action.yml:120 [yaml step name; from list_messages, the extractor missed it]
@@ -425,7 +425,7 @@ step_verify = "Verify round trip"
 # action.yml:178 [yaml step name; from list_messages, the extractor missed it]
 step_record_failure = "Record failure (leave bites untouched, publish only last_build.json)"
 # action.yml:189 [yaml step name; from list_messages, the extractor missed it]
-step_publish = "Publish to bites output branch"
+step_publish = "Publish to output branch"
 
 [cleanup_action]
 # cleanup/action.yml:47 [echo]  placeholders: action_path, script
@@ -439,7 +439,7 @@ input_dry_run = "'true' reports what would be deleted without deleting it"
 # cleanup/action.yml:29 [yaml step name; from list_messages, the extractor missed it]
 step_checkout = "Check out repository"
 # cleanup/action.yml:36 [yaml step name; from list_messages, the extractor missed it]
-step_delete = "Delete the bites output branch"
+step_delete = "Delete the output branch"
 
 [template]
 # templates/bites.yml [comment block copied into every installed workflow]
@@ -547,7 +547,7 @@ help_recorded = "Recorded in the manifest"
 # bites_tool/cli.py:68 [help]
 help_patch_report = "Report written by `apply`, copied into last_build.json"
 # bites_tool/cli.py:69 [help]
-help_full = "Rebuild every large file"
+help_full = "Reprocess every large file"
 # bites_tool/cli.py:74 [help]
 help_verify = "Check the output tree against the source tree"
 # bites_tool/cli.py:82 [help]

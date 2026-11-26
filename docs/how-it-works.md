@@ -46,12 +46,12 @@ It commits a patch file to `.bites-patches/` on the source branch:
 `BASE` is the start of the file's current git blob SHA, so a patch made against an outdated file is rejected.
 Each `FIND` must match exactly once.
 Patches also support `APPEND` and creating new files.
-All pending patch files are applied together or not at all; on success the workflow commits the result to the source branch, deletes the patch files, and rebuilds the bites.
+All pending patch files are applied together or not at all; on success the workflow commits the result to the source branch, deletes the patch files, and reprocesses the bites.
 The full grammar is in [BITES_INSTRUCTIONS.md](../BITES_INSTRUCTIONS.md) and the `bites_tool/patches.py` docstring.
 
 ## Cleaning up output branches
 
-An output branch holds only derived data, so deleting one is cheap: recreate the branch and the next push rebuilds it.
+An output branch holds only derived data, so deleting one is cheap: recreate the branch and the next push reprocesses it.
 
 - **Automatic.** When a branch is deleted, by hand or by the repository's "Automatically delete head branches" setting after a pull request merge, the `cleanup` job deletes `bites/<branch>`.
   It skips tags, the default branch, `bites/*` branches, a branch that exists again by the time it runs, and branches that have no output branch.

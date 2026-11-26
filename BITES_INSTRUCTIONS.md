@@ -128,7 +128,7 @@ Rules:
 
 ## 5. After pushing a patch (or any commit to a branch that has an output branch)
 
-1. The workflow applies the patches, commits that to `<BRANCH>` as "bites: apply patches", deletes the applied patch files, rebuilds the bites and publishes `bites/<BRANCH>`.
+1. The workflow applies the patches, commits that to `<BRANCH>` as "bites: apply patches", deletes the applied patch files, reprocesses the bites and publishes `bites/<BRANCH>`.
    The patch file is gone from `<BRANCH>` afterwards but stays in git history (the commit that added it).
 2. A build normally finishes within about 10 to 60 seconds of the push.
    Wait about 30 seconds between checks and make up to 5 checks (builds on one branch queue, so several quick pushes take longer).
