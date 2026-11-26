@@ -84,15 +84,14 @@ def test_all_branches_covers_every_branch_including_slash_names(tmp_path):
     assert "Setup complete and verified" in r.stdout
 
 
-def test_all_branches_skips_output_and_setup_branches(tmp_path):
-    bare, env = make_remote(tmp_path, branches=("dev", "bites-setup"), output_branches=("dev",))
+def test_all_branches_skips_current_setup_branches(tmp_path):
+    bare, env = make_remote(tmp_path, branches=("dev", "bites-setup/dev"))
     before = refs(bare, env)
     r = run(bare, env, "--all-branches")
     assert r.returncode == 0, r.stdout + r.stderr
     got = refs(bare, env)
-    assert got["refs/heads/bites-setup"] == before["refs/heads/bites-setup"]
-    assert "refs/heads/bites/bites-setup" not in got and "refs/heads/bites/bites/dev" not in got
-    assert got["refs/heads/bites/dev"] == before["refs/heads/bites/dev"]
+    assert got["refs/heads/bites-setup/dev"] == before["refs/heads/bites-setup/dev"]
+    assert "refs/heads/bites/bites-setup/dev" not in got
 
 
 def test_all_branches_with_names_is_rejected_before_any_write(tmp_path):
