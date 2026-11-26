@@ -123,7 +123,7 @@ contains the parts. Then give your assistant the instructions in [BITES_INSTRUCT
 
 | Guide | What it covers |
 | - | - |
-| [How it works](docs/how-it-works.md) | The mirror branch, parts and manifest, editing with patches, cleanup, repository layout, releases |
+| [How it works](docs/how-it-works.md) | The output branch, parts and manifest, editing with patches, cleanup, repository layout, releases |
 | [Configuration](docs/configuration.md) | `max_chars`, `read_cap`, `include`, `exclude`, workflow inputs, `bites.toml`, precedence |
 | [Bootstrap and repository settings](docs/bootstrap.md) | `scripts/bootstrap.sh` options and the repository settings the action needs |
 | [Limitations, security and troubleshooting](docs/limitations.md) | Known limits, permissions and cost, and fixes for common errors |

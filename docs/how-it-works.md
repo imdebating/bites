@@ -24,11 +24,11 @@ A build usually finishes well under a minute.
 - A file at or under `max_chars` characters is not output and is read directly.
 - A longer file is cut at exact multiples of `max_chars` characters (not at line or word boundaries); the last part holds the remainder.
 - Each part file is a header line, the body, and a footer line, so a truncated read is detectable: `<<<BITE file=... part=2/3 chars=27000 start_line=412 sha256=... >>>` ... `<<<END BITE 2/3>>>`.
-- `manifest.json` lists each outputted file with its git blob SHA, size, SHA-256, part count and the first line of each part, and records the `max_chars` in use. `last_build.json` has `status` (`ok` or `error`), the source commit, which files changed, and any patch results.
+- `manifest.json` lists each output file with its git blob SHA, size, SHA-256, part count and the first line of each part, and records the `max_chars` in use. `last_build.json` has `status` (`ok` or `error`), the source commit, which files changed, and any patch results.
 - Builds are incremental: a file is re-split only when its git blob changes.
 - If a build fails, the previous bites stay as they were and only `last_build.json` is updated with the error.
 
-Which files are output is set by `include` and `exclude` globs; see [Configuration](configuration.md#which-files-are-segmented).
+Which files are output is set by `include` and `exclude` globs; see [Configuration](configuration.md#which-files-are-processed).
 
 ## Editing large files with patches
 

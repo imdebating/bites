@@ -8,7 +8,7 @@
   Each processed file uses roughly 350 characters of space, so with the defaults a branch holds up to approx. 70 to 80 large files, and a smaller `max_chars` lowers that number in proportion.
   Beyond the limit the build fails with an error naming it instead of publishing a cut-off manifest; narrow `include` and `exclude` if you reach it.
 - Reading a large file takes several tool calls (one per part), and an assistant must follow the procedure in `BITES_INSTRUCTIONS.md`; there is no enforcement on the assistant's side.
-- The bites branch lags the source by the build time, so assistants should check freshness (the instructions explain how).
+- The bites output branch lags the source by the build time, so assistants should check freshness (the instructions explain how).
 - Applied patches add a commit to the source branch, pushed with the workflow's token.
   Patches therefore work only on branches that accept direct pushes; see [Patches and protected branches](#patches-and-protected-branches).
 - Tested on GitHub-hosted Ubuntu runners and with the GitHub MCP server connector.
@@ -35,14 +35,14 @@ One caveat: events caused by the workflow's own `GITHUB_TOKEN` do not start new 
 - **Permissions.** The workflow needs `contents: write` to push to your branches. It uses only the job's `GITHUB_TOKEN`.
   The bites code itself makes no network calls beyond running git against your repository.
   Patch paths are limited to the working tree: absolute paths, `..` and `.git/` are rejected.
-- **Your content is duplicated.** Parts of your files are written to the bites branch.
+- **Your content is duplicated.** Parts of your files are written to the bites output branch.
   Anyone who can read the repository can read them.
   The secret-like file names listed in [Configuration](configuration.md#which-files-are-processed) are never copied, but a secret inside a processed file is.
 - **Supply chain.** `@v1` is a moving tag.
   To control exactly what runs, pin a full commit SHA instead (`imdebating/bites@<sha>`), and let Dependabot propose updates.
   The actions this project uses internally are pinned to full SHAs.
 - **Cost.** The workflow starts on every push to every branch.
-- With no bites branch it exits within seconds; with one, a build takes roughly 10 to 60 seconds of runner time.
+- With no bites output branch it exits within seconds; with one, a build takes roughly 10 to 60 seconds of runner time.
   On private repositories that counts against your Actions minutes. 
   Storage grows by the size of the processed files.
 
@@ -56,13 +56,13 @@ One caveat: events caused by the workflow's own `GITHUB_TOKEN` do not start new 
 | `bootstrap.sh` warns "cannot reach" or "no tag or branch named ..." | The action repository is private or misspelled, or it has no such tag, so workflows in your repository would fail with the error above. Correct `--action-from` or `--workflow-version`, make the action repository public (or share it through its Access setting), or pass `--no-preflight` to skip the check. |
 | `bootstrap.sh` stops with "would remove" | The installed workflow has `max-chars`, `read-cap`, `include` or `exclude` lines that this run would delete. Run it again with the same `-c` options, or delete those lines first. |
 | `bootstrap.sh` stops with "not a bites workflow" | `.github/workflows/bites.yml` on one of the branches was not written by bootstrap. Move it aside, or merge its jobs by hand, then run bootstrap again. Nothing was changed. |
-| `bootstrap.sh` exits 1 and says INCOMPLETE | A push was refused (a protected branch when you did not give `--protected`, or a missing permission) or a branch moved while it ran. The summary names the branch and the reason. Fix it and run the same command again. |
-| `bootstrap.sh` exits 3 (PENDING) | `--protected` opened a pull request. Merge it, then run the same command again to verify. |
+| `bootstrap.sh` exits 1 and says Incomplete | A push was refused (a protected branch when you did not give `--protected`, or a missing permission) or a branch moved while it ran. The summary names the branch and the reason. Fix it and run the same command again. |
+| `bootstrap.sh` exits 3 (Pending) | `--protected` opened a pull request. Merge it, then run the same command again to verify. |
 | `bootstrap.sh` says the GitHub CLI (gh) was not found | A branch needed a pull request, and `gh` is not installed. Install it from <https://cli.github.com> (on macOS, `brew install gh`), run `gh auth login`, and run the same command again. Or open the pull request at the link that bootstrap prints. |
 | `bootstrap.sh --all-branches` refuses a branch name | A branch has characters other than letters, digits and `. _ / -`. Nothing was changed; list the other branches by name instead. |
 | Push rejected, "protected branch" or "permission denied" | The source branch requires pull requests, so the workflow cannot push applied patches to it: GitHub does not let the workflow's token bypass that rule, and `last_build.json` records `"stage": "commit"`. Delete the patch file with a pull request (every build on the branch fails until you do), then apply the patch on an unprotected working branch and merge it; see [Patches and protected branches](#patches-and-protected-branches). For bootstrap itself, use --protected. An organization policy that caps the workflow token to read-only gives the same error. |
 | `last_build.json` says `"status": "error"` | `stage` and `message` name the failure (`apply`: a patch was rejected; `build`: for example a manifest over its limit; `verify`: a part did not match its source or is over `read_cap`; `commit`: the applied patches could not be pushed to the source branch). Previous parts are left untouched. A rejected patch file stays in `.bites-patches/` and blocks later builds until it is fixed or deleted. |
 | The build log warns that `max_chars` leaves too little room | `max_chars` plus the part header, the footer and the connector's wrapper would exceed `read_cap`. Lower `max_chars` to the value the warning gives, or verification will fail. |
 | `source_commit` in `last_build.json` is behind the branch head | The build has not finished yet, or it failed before publishing; check the run in the Actions tab. |
-| A deleted branch's bites branch is still there | The workflow on the default branch predates the cleanup job, a rule blocks deleting `bites/**`, or the delete event did not fire. Run `scripts/prune.sh`. |
-| A restored branch no longer builds | Its mirror was deleted with it. Run bootstrap for the branch again, or create `bites/<branch>` by hand. |
+| A deleted branch's bites output branch is still there | The workflow on the default branch predates the cleanup job, a rule blocks deleting `bites/**`, or the delete event did not fire. Run `scripts/prune.sh`. |
+| A restored branch no longer builds | Its output branch was deleted with it. Run bootstrap for the branch again, or create `bites/<branch>` by hand. |
