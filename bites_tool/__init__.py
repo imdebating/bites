@@ -11,17 +11,18 @@ WHY THIS EXISTS
 PACKAGE LAYOUT
     core.py      shared helpers, configuration, source-file selection, and the part
                  file format (render, parse, split, join)
-    build.py     the build, verify, reassemble and report-failure commands
+    build.py     the build, verify, reassemble, note-failure and report-failure commands
     patches.py   patch-file grammar and the apply command
     cli.py       argument parsing and the program entry point
     __main__.py  lets the package run as `python -m bites_tool`
 
 RUNNING
     PYTHONPATH=<directory containing bites_tool> python -m bites_tool <command> ...
-    Commands: apply, build, verify, reassemble, report-failure (see cli.py).
+    Commands: apply, build, verify, reassemble, note-failure, report-failure (see cli.py).
     In CI the composite action (action.yml in the repository root) does this for you: it
     sets PYTHONPATH to the directory it was fetched into (github.action_path) and runs
-    apply, build, verify and, after a failure, report-failure.
+    apply, build and verify. After a failure it runs report-failure, preceded by note-failure
+    when the applied patches could not be committed and pushed.
 
 Standard library only. Requires Python 3.11+ (tomllib) and `git` on PATH.
 """
