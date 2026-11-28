@@ -1,7 +1,7 @@
 """Tests for bootstrap.sh across several branches: --all-branches, ordering, failures, --protected.
 
 The contract under test: one bootstrap command installs the caller workflow and creates the
-mirror for every requested branch, without merging anything, and reports success only when
+output branch for every requested branch, without merging anything, and reports success only when
 the remote really holds all of it. Everything runs against local bare repositories.
 """
 import shutil
@@ -9,9 +9,14 @@ import stat
 from pathlib import Path
 
 import pytest
-from gitutil import make_remote, sh
+from gitutil import bootstrap_script, make_remote, sh
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
+import tomllib
+
+CATALOG = tomllib.loads(
+    (Path(__file__).resolve().parent.parent / "locales" / "strings.en.toml").read_text(encoding="utf-8")
+)
+SCRIPT = bootstrap_script()
 WF = ".github/workflows/bites.yml"
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
@@ -81,18 +86,17 @@ def test_all_branches_covers_every_branch_including_slash_names(tmp_path):
     for b in ("main", "dev", "feature/x"):
         assert f"refs/heads/bites/{b}" in got
         assert show(bare, env, b, WF) == show(bare, env, "main", WF)
-    assert "setup complete and verified" in r.stdout
+    assert "Setup complete and verified" in r.stdout
 
 
-def test_all_branches_skips_output_and_setup_branches(tmp_path):
-    bare, env = make_remote(tmp_path, branches=("dev", "bites-setup"), mirrors=("dev",))
+def test_all_branches_skips_current_setup_branches(tmp_path):
+    bare, env = make_remote(tmp_path, branches=("dev", "bites-setup/dev"))
     before = refs(bare, env)
     r = run(bare, env, "--all-branches")
     assert r.returncode == 0, r.stdout + r.stderr
     got = refs(bare, env)
-    assert got["refs/heads/bites-setup"] == before["refs/heads/bites-setup"]
-    assert "refs/heads/bites/bites-setup" not in got and "refs/heads/bites/bites/dev" not in got
-    assert got["refs/heads/bites/dev"] == before["refs/heads/bites/dev"]
+    assert got["refs/heads/bites-setup/dev"] == before["refs/heads/bites-setup/dev"]
+    assert "refs/heads/bites/bites-setup/dev" not in got
 
 
 def test_all_branches_with_names_is_rejected_before_any_write(tmp_path):
@@ -139,10 +143,10 @@ def test_unselected_branches_are_untouched_and_default_gets_only_the_caller(tmp_
     assert "refs/heads/bites/main" not in got and "refs/heads/bites/other" not in got
     assert "refs/heads/bites/dev" in got
     assert show(bare, env, "main", WF) == show(bare, env, "dev", WF)
-    assert "not mirrored" in r.stdout
+    assert CATALOG["bootstrap"]["no_output_branch_row"] in r.stdout
 
 
-def test_mirror_branches_exist_before_the_workflow_is_pushed(tmp_path):
+def test_output_branches_exist_before_the_workflow_is_pushed(tmp_path):
     bare, env = make_remote(tmp_path, branches=("dev",))
     log = tmp_path / "order.log"
     install_hook(bare, "update", f'echo "$1" >> "{log}"\nexit 0\n')
@@ -153,8 +157,8 @@ def test_mirror_branches_exist_before_the_workflow_is_pushed(tmp_path):
         assert order.index(f"refs/heads/bites/{b}") < order.index(f"refs/heads/{b}")
 
 
-def test_existing_mirrors_are_left_alone(tmp_path):
-    bare, env = make_remote(tmp_path, branches=("dev",), mirrors=("dev",))
+def test_existing_output_branches_are_left_alone(tmp_path):
+    bare, env = make_remote(tmp_path, branches=("dev",), output_branches=("dev",))
     before = refs(bare, env)["refs/heads/bites/dev"]
     assert run(bare, env, "main", "dev").returncode == 0
     assert refs(bare, env)["refs/heads/bites/dev"] == before
@@ -215,7 +219,7 @@ def test_a_rejected_branch_is_reported_and_the_rest_is_finished(tmp_path):
     )
     r = run(bare, env, "main", "dev")
     assert r.returncode == 1
-    assert "INCOMPLETE" in r.stderr and "FAILED" in r.stdout
+    assert "Incomplete" in r.stderr and "Failed" in r.stdout
     assert "refs/heads/bites/main" in refs(bare, env)
     assert has(bare, env, "main", WF)
     assert not has(bare, env, "dev", WF)
@@ -230,7 +234,7 @@ def test_a_mirror_that_cannot_be_created_keeps_its_workflow_back(tmp_path):
     install_hook(bare, "update", 'if [ "$1" = refs/heads/bites/dev ]; then exit 1; fi\nexit 0\n')
     r = run(bare, env, "main", "dev")
     assert r.returncode == 1
-    assert "NOT DONE" in r.stdout
+    assert "Not Complete" in r.stdout
     assert not has(bare, env, "dev", WF)
     assert "refs/heads/bites/main" in refs(bare, env)
 
@@ -270,7 +274,7 @@ def test_success_is_not_claimed_when_the_remote_does_not_hold_the_result(tmp_pat
     install_hook(bare, "post-receive", 'git update-ref -d refs/heads/bites/dev 2>/dev/null\nexit 0\n')
     r = run(bare, env, "main", "dev")
     assert r.returncode == 1
-    assert "FAILED" in r.stdout and "not on the remote" in r.stdout
+    assert "Failed" in r.stdout and "on the remote after the push" in r.stdout
     assert "complete and verified" not in r.stdout
 
 
@@ -280,5 +284,5 @@ def test_dry_run_with_all_branches_writes_nothing(tmp_path):
     r = run(bare, env, "--dry-run", "--all-branches")
     assert r.returncode == 0, r.stdout + r.stderr
     assert r.stdout.count("[dry-run]") >= 4
-    assert "planned" in r.stdout and "complete and verified" not in r.stdout
+    assert "Planned" in r.stdout and "complete and verified" not in r.stdout
     assert refs(bare, env) == before

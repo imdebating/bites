@@ -1,0 +1,58 @@
+name: release
+
+# Build and test the standalone release files when VERSION changes on main, or by hand.
+# Save both files as a workflow artifact for manual release creation. This workflow does not
+# create or publish releases, require committed release notes, or create or move Git tags.
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Run the tests
+        run: |
+          python -m pip install pytest
+          python -m pytest tests -q
+
+      - name: Build bootstrap.sh
+        run: python scripts/build_bootstrap.py -o dist/bootstrap.sh
+
+      # The built file goes into a directory with nothing else in it, so a file that it needs
+      # but does not contain makes these tests fail.
+      - name: Test the built file
+        run: |
+          mkdir "$RUNNER_TEMP/download"
+          cp dist/bootstrap.sh "$RUNNER_TEMP/download/"
+          BITES_BOOTSTRAP_SCRIPT="$RUNNER_TEMP/download/bootstrap.sh" python -m pytest tests/test_bootstrap*.py tests/test_preflight.py -q
+
+      - name: Verify the checksum
+        run: |
+          cd dist
+          sha256sum -c bootstrap.sh.sha256
+
+      - name: Save the release candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bootstrap-release-candidate
+          path: |
+            dist/bootstrap.sh
+            dist/bootstrap.sh.sha256
+          if-no-files-found: error

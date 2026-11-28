@@ -4,9 +4,9 @@ Four settings are meant to be changed:
 
 | Setting | Workflow input | Default | Meaning |
 |----|----|----|----|
-| `max_chars` | `max-chars` | 27000 | No-chunk threshold and maximum part body, in characters (Unicode code points, not bytes) |
-| `read_cap` | `read-cap` | 28000 | The connector's per-result limit; the build fails if a part plus the connector's wrapper would exceed it |
-| `include` | `include` | the extensions listed below | Globs of the files to mirror (`*` within a directory, `**/` across directories) |
+| `max_chars` | `max-chars` | 27000 | Processing threshold and maximum bite body size, in characters (Unicode code points, not bytes) |
+| `read_cap` | `read-cap` | 28000 | The connector's per-result limit; the build fails if a bite plus the connector's wrapper would exceed it |
+| `include` | `include` | the extensions listed below | Globs of the files to process (`*` within a directory, `**/` across directories) |
 | `exclude` | `exclude` | `**/node_modules/**` | Globs of files to leave out |
 
 There are two places to set them.
@@ -48,16 +48,16 @@ Set `read_cap` to that size and `max_chars` about 1,000 characters lower (the de
 A client that limits by tokens rather than characters needs a conservative character estimate.
 A build warns if `max_chars` leaves too little room under `read_cap`, and verification fails the build if a part really is too big.
 
-## Which files are mirrored
+## Which Files are Processed
 
 By default: `.md`, `.txt`, `.rst`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.java`, `.c`, `.h`, `.sh`, `.sql`, `.html`, `.css`, `.xml`, `.json`, `.yml`, `.yaml`, `.toml`, `.ini`, `.cfg`, `.conf` and `.csv`, excluding `node_modules/`.
-Git internals, `.github/`, `.bites-patches/` and `bites.toml` are never mirrored, and neither are `.env*`, `*.pem`, `*.key` and `id_rsa*`, whatever the configuration says.
+Git internals, `.github/`, `.bites-patches/` and `bites.toml` are never processed, and neither are `.env*`, `*.pem`, `*.key` and `id_rsa*`, whatever the configuration says.
 
-## Inputs and permissions
+## Inputs and Permissions
 
 | Action | Input | Default | Meaning |
 |----|----|----|----|
-| `imdebating/bites` | `full` | `false` | `true` rebuilds and re-splits every large file |
+| `imdebating/bites` | `full` | `false` | `true` reprocesses and re-outputs every large file |
 | `imdebating/bites` | `max-chars`, `read-cap`, `include`, `exclude` | empty | Override the settings above; empty keeps the value from `bites.toml` or the default |
 | `imdebating/bites/cleanup` | `dry-run` | `false` | `true` only logs what it would delete |
 

@@ -1,0 +1,650 @@
+# bites messages, English. Edit the text between the quotes; keep the {placeholders} in place.
+#
+# Rules for this file:
+#   - Start with a capital letter, end with a period, and use the Oxford comma.
+#   - {name} is a placeholder that the code fills in. Write {{ and }} for literal braces.
+#   - Keys name the situation, not the wording, so you can change the text freely.
+#   - The comment above each message gives where it comes from and which placeholders it needs.
+#   - Lines marked [yaml] live in YAML files, which cannot call this catalog; a test keeps them in step.
+#   - Vocabulary: the branch bites reads is the source branch, and the bites/<branch> branch it writes
+#     is the output branch. Do not call it a mirror: it holds only the parts (bites) of large files.
+
+[meta]
+language = "en"
+format_version = 1
+
+[bootstrap]
+# scripts/bootstrap.sh [help text, one block]
+help = '''
+bootstrap.sh - Set up bites in a repository with a single command. It installs the bites
+workflow on every branch you choose and creates each branch's bites/<branch> output branch.
+It works for brand-new and existing repositories: it is safe to run multiple times, because
+it only ever changes what differs.
+
+usage: scripts/bootstrap.sh [options] OWNER/REPO [BRANCH ...]
+       scripts/bootstrap.sh [options] --all-branches OWNER/REPO
+
+  BRANCH ...                 The source branches to set up. The default is the repository's
+                             default branch. Names may use only letters, digits, and the
+                             characters . _ / -
+  -a, --all-branches         Set up every branch the repository has now, except bites/*,
+                             bites-setup, and bites-setup/*. It cannot be combined with BRANCH
+                             names. Branches created later are not included. Simply rerun the
+                             bootstrap.sh command to add them.
+  -v, --workflow-version V   The version of the action that the workflow uses: a tag such as v1
+                             (the default), an exact tag, or a full commit SHA.
+  -f, --action-from O/R      The repository that holds the action. The default is
+                             imdebating/bites. Use this to take the action from a fork.
+  -c, --config KEY=VALUE     Put a bites setting into the generated workflow. Repeat the option
+                             once per setting. The keys are max_chars, read_cap, include, and
+                             exclude: include and exclude may be repeated once per glob.
+  -s, --ssh                  Clone and push over SSH instead of HTTPS.
+  -p, --protected            Allow pull requests for protected branches. Each branch is tried
+                             with a direct push first. Only if GitHub rejects the push because
+                             the branch is protected does the script push the workflow to a
+                             branch named bites-setup/<branch> and open a pull request into
+                             <branch>. Those branches stay Pending (exit status 3) until the
+                             pull requests are merged and the command is run again. Without
+                             this option, installing on a protected branch exits as Failed.
+  --dry-run                  Show what would be done, and change nothing on the remote.
+  -n, --no-preflight         Skip the check that the action repository and version can be
+                             reached.
+  --url URL                  Clone the target from this URL instead. The tests use it, and it
+                             also turns the preflight check off unless --action-url is given.
+  --action-url URL           Where the preflight check looks for the action. The default is
+                             https://github.com/O/R.git for --action-from O/R. The tests use it.
+  -V, --version              Print the version of this script, and stop.
+  -h, --help                 Show this text, and stop.
+
+IMPORTANT: The -c/--config values apply to every branch, so settings that differ by branch
+           belong in a bites.toml file. Running the script again without them would remove
+           them, so it stops instead. Repeat them, or delete them from the workflow first.
+
+Short options that take no value can be combined, so -aps means -a -p -s. Options that take a
+value (-v, -f, and -c) go last in a combination, followed by their value as the next argument.
+
+What it does, in order:
+  0. Preflight: checks, anonymously (as a workflow in another repository would see it), that the
+     action repository is reachable and has the tag, branch, or commit given by
+     --workflow-version. Problems are warnings, not errors, because a private action repository
+     can be shared with private repositories through its Actions access setting.
+  1. Clones OWNER/REPO into a temporary directory and works out the selected branches.
+  2. Checks every selected branch before changing anything: it exists, and its existing
+     .github/workflows/bites.yml (if any) is a bites workflow whose settings would not be lost.
+  3. Creates the missing bites/<branch> output branches, before the workflow, so the first build
+     already finds its output branch.
+  4. Adds .github/workflows/bites.yml (from templates/bites.yml) to each selected branch, and to
+     the default branch, whose copy runs the cleanup job, as one extra commit on top of that
+     branch. Nothing is merged, and no other file changes. A branch that rejects the push
+     because it is protected gets a pull request instead, if --protected was given.
+  5. Fetches the remote again, and checks that every workflow and output branch is really there.
+  6. Prints one line per branch, and reports success only if all of them are ready.
+It NEVER edits existing source files, NEVER force-pushes a source branch, and never touches an
+existing bites/* branch. Only the reserved bites-setup/* branches are ever replaced.
+Running it again with a different --workflow-version is how a project's pinned version changes.
+
+Exit status: 0 means setup is complete and verified (or --dry-run). 1 means an error, or setup is
+incomplete, and the summary says which branches. 3 means pending: a pull request must be merged.
+"Verified" means the files and branches are on the remote. Actions settings, organization
+policies, and the token's permissions at run time cannot be seen from here.
+
+Required: git, plus credentials that can push to the target repository.
+Suggested: gh (GitHub CLI). Automating the pull request step uses the GitHub CLI. When it is not
+available, it prints next steps for the user to do by hand.
+'''
+# scripts/bootstrap.sh:112 [other]  placeholders: combination, letter
+option_value_not_last = "The option -{letter} requires a value, so it must come last in a combination: {combination}."
+# scripts/bootstrap.sh:123 [die]  placeholders: item
+config_needs_key_value = "--config expects KEY=VALUE: {item}."
+# scripts/bootstrap.sh:126 [die]  placeholders: key, value
+config_value_invalid = "--config {key} requires a value without spaces and without ${{: {value}."
+# scripts/bootstrap.sh:130 [other]  placeholders: key, value
+config_number_invalid = "--config {key} requires a whole number of at least 1: {value}."
+# scripts/bootstrap.sh:134 [die]  placeholders: key
+config_advanced_setting = "{key} is an advanced setting: put it in a bites.toml, not in the workflow."
+# scripts/bootstrap.sh:135 [die]  placeholders: key
+config_unknown_setting = "Unknown setting {key}: --config accepts max_chars, read_cap, include, and exclude."
+# scripts/bootstrap.sh:140 [die]
+renamed_ref = "The option --ref is now --workflow-version (-v)."
+# scripts/bootstrap.sh:141 [die]
+renamed_action = "The option --action is now --action-from (-f)."
+# scripts/bootstrap.sh:142 [die]
+renamed_set = "The option --set is now --config (-c)."
+# scripts/bootstrap.sh:143 [die]
+renamed_pr = "The option --pr is now --protected (-p). It now tries a direct push first, and it opens a pull request only if the branch rejects it."
+# scripts/bootstrap.sh:160 [echo]
+version_hint = "Run bootstrap.sh --help to see the options that this version supports."
+# scripts/bootstrap.sh:160 [echo]  placeholders: version
+version_line = "bootstrap.sh {version}"
+# scripts/bootstrap.sh:164 [die]  placeholders: option
+unknown_option = "Unknown option: {option}."
+# scripts/bootstrap.sh:172 [die]
+all_branches_with_names = "--all-branches cannot be combined with branch names (use one or the other)"
+# scripts/bootstrap.sh:180 [die]  placeholders: target
+target_invalid = "Target must follow the format OWNER/REPO: {target}."
+# scripts/bootstrap.sh:181 [die]  placeholders: action
+action_from_invalid = "--action-from must follow the format OWNER/REPO: {action}"
+# scripts/bootstrap.sh:182 [die]  placeholders: version
+workflow_version_invalid = "--workflow-version contains unexpected characters: {version}"
+# scripts/bootstrap.sh:184 [die]  placeholders: branch
+branch_characters = "The branch {branch} contains unexpected characters. Branch names may only contain letters, digits, and these characters: . _ / -"
+# scripts/bootstrap.sh:185 [die]  placeholders: branch
+branch_invalid = "{branch} is not a valid branch name."
+# scripts/bootstrap.sh:187 [die]  placeholders: branch
+branch_reserved = "The branch {branch} is reserved for bites and cannot be a source branch."
+# scripts/bootstrap.sh:206 [die]  placeholders: template
+template_missing = "I cannot find the template {template}."
+# scripts/bootstrap.sh:232 [warn]  placeholders: action, version
+preflight_ref_missing = '''
+{action} does not have a tag or branch named '{version}'. Is this a typo?
+Workflows that attempt to use {action}@{version} will fail with the message
+"Unable to resolve action" until the branch exists or the typo is corrected.'''
+# scripts/bootstrap.sh:234 [warn]  placeholders: action, target, url
+preflight_unreachable = '''
+The action at {url} cannot be reached without proper credentials.
+If {action} is private or misspelled, workflows in {target} will fail
+with the message "Repository not found". A public project needs a public action repository.
+A private project can use a private action only if its Settings > Actions > General > Access
+allows it. Use --no-preflight to skip this check.'''
+# scripts/bootstrap.sh:246 [note]  placeholders: target
+cloning = "Cloning {target}..."
+# scripts/bootstrap.sh:247 [die]  placeholders: url
+clone_failed = "I could not clone {url}. Is the URL correct?"
+# scripts/bootstrap.sh:253 [die]
+no_default_branch = "The repository has no default branch set. Is the branch empty? Try making a first commit."
+# scripts/bootstrap.sh:269 [echo]  placeholders: destination, source
+dry_run_push = "[dry-run] git push origin {source}:{destination}"
+# scripts/bootstrap.sh:292 [die]  placeholders: branch, detail, status
+remote_branch_query_failed = "I was unable to ask the remote about branch {branch} (git exit status {status}): {detail}."
+# scripts/bootstrap.sh:303 [die]  placeholders: detail, status
+remote_branch_list_failed = "I couldn't list the branches on the remote (git exit status {status}): {detail}."
+# scripts/bootstrap.sh:314 [die]  placeholders: names
+all_branches_bad_names = """
+These branch names contain characters other than letters, digits, and . _ / -:{names}
+I made no changes to the repository. Run the script again and name only valid branches."""
+# scripts/bootstrap.sh:325 [note]  placeholders: branches
+branches_to_set_up = "Configuring branch(es) {branches}."
+# scripts/bootstrap.sh:326 [note]  placeholders: default_branch
+default_branch_workflow_only = """
+I must add a copy of the workflow to the default branch ({default_branch}).
+This lets the cleanup job execute. No bites output branch will be created.
+Only the workflow file /.github/workflows/bites.yml will be added."""
+# scripts/bootstrap.sh:337 [die]  placeholders: branch
+source_branch_missing = "I cannot find the {branch} branch on the remote. Check the branch name and try again."
+# scripts/bootstrap.sh:346 [echo]  placeholders: branch, workflow_file
+problem_not_bites_workflow = "  - {branch}: I found the workflow file {workflow_file}, but it is not a bites workflow. Move it aside, or merge its jobs by hand."
+# scripts/bootstrap.sh:348 [echo]  placeholders: branch, workflow_file
+problem_settings_removed = "  - {branch}: the existing {workflow_file} sets bites options (max-chars, read-cap, include, or exclude) that this run would remove; give them again with --config, or delete them from the workflow first."
+# scripts/bootstrap.sh:354 [echo]
+setup_stopped = "Setup stopped before I changed anything:"
+# scripts/bootstrap.sh:365 [note]  placeholders: branch
+output_branch_exists = "The bites output branch {branch} already exists."
+# scripts/bootstrap.sh:369 [note]  placeholders: branch
+output_branch_creating = "I'm creating the bites output branch {branch}."
+# scripts/bootstrap.sh:373 [set_state] placeholders: branch
+output_branch_created_elsewhere = "The bites output branch {branch} was just created by someone else."
+# scripts/bootstrap.sh:375 [set_state]  placeholders: branch
+output_branch_create_failed = "I could not create the bites output branch {branch}."
+# scripts/bootstrap.sh:403 [note]  placeholders: branch, setup_branch
+pr_none_open = "I could not find an open pull request from {setup_branch} into {branch}, so I will open one now."
+# scripts/bootstrap.sh:405 [commit or pull request text]  placeholders: branch
+pr_title = "Add bites workflow to {branch}"
+# scripts/bootstrap.sh:406 [commit or pull request text]  placeholders: action, version, workflow_file
+pr_body = "Add the bites workflow ({action}@{version}). The diff should show one added file, {workflow_file}. If it shows anything else, do not merge it: cancel the pull request and run the bootstrap script again."
+# scripts/bootstrap.sh:407 [warn]  placeholders: url
+pr_create_failed = """
+I was unable to create the pull request using GitHub CLI.
+Ensure the `gh` command works properly or create the pull request by hand: {url}"""
+# scripts/bootstrap.sh:408 [note]  placeholders: branch, setup_branch
+pr_already_open = "I found an existing open pull request from {setup_branch} into {branch}. Please merge it."
+# scripts/bootstrap.sh:409 [warn]  placeholders: url
+gh_unusable = """
+The GitHub CLI isn't responding as expected. Ensure you are signed in, run `gh auth login`
+and then run this command again.
+Alternatively, you may create the pull request yourself: {url}"""
+# scripts/bootstrap.sh:413 [note]  placeholders: url
+gh_missing = """
+I couldn't locate the GitHub CLI (gh). Without gh installed, I am unable to open pull requests for you.
+To install it, see https://cli.github.com (on macOS/Linux, run: `brew install gh`), run `gh auth login`
+once, and then re-run this command.
+Alternatively, you can open and merge the pull request by hand: {url}"""
+# scripts/bootstrap.sh:417 [note]  placeholders: branch, workflow_file
+pr_check_diff = "Before merging, check that the diff of the pull request into {branch} shows only {workflow_file}."
+# scripts/bootstrap.sh:427 [note]
+legacy_branch_removing = "I am removing the legacy 'bites-setup' branch because branch names are now created under bites-setup/."
+# scripts/bootstrap.sh:431 [set_state]  placeholders: detail
+legacy_branch_removal_failed = "I was unable to remove the old bites-setup branch: {detail}"
+# scripts/bootstrap.sh:437 [note]  placeholders: setup_branch
+setup_branch_exact = "I already see the expected workflow in {setup_branch}."
+# scripts/bootstrap.sh:439 [set_state]  placeholders: branch, setup_branch
+pending_merge = "Merge the pull request from {setup_branch} into {branch}."
+# scripts/bootstrap.sh:443 [note]  placeholders: setup_branch
+setup_branch_replacing = "I am replacing the {setup_branch} branch. It contains something other than the expected workflow."
+# scripts/bootstrap.sh:445 [note]  placeholders: branch, setup_branch
+setup_branch_pushing = "Pushing {setup_branch}, so I can open a pull request into {branch}."
+# scripts/bootstrap.sh:458 [note]  placeholders: branch, workflow_file
+workflow_up_to_date = "The {workflow_file} on {branch} is current."
+# scripts/bootstrap.sh:467 [commit or pull request text]  placeholders: action, version
+workflow_commit_message = "Add the bites workflow ({action}@{version})"
+# scripts/bootstrap.sh:468 [note]  placeholders: branch
+workflow_adding = "Adding the bites workflow to {branch}."
+# scripts/bootstrap.sh:473 [note]  placeholders: branch
+push_rejected_protected = "{branch} rejected my push because it is protected, so we need to use a pull request."
+# scripts/bootstrap.sh:476 [set_state]  placeholders: branch
+protected_needs_option = "Adding the workflow failed, because {branch} is protected and a pull request is required. Run the same command again with --protected (-p) to open one."
+# scripts/bootstrap.sh:484 [set_state]  placeholders: branch
+workflow_skipped_no_output_branch = "The branch {branch} couldn't be created, so I wasn't able to add the workflow."
+# scripts/bootstrap.sh:493 [die]  placeholders: detail
+verify_fetch_failed = "I couldn't read the remote to verify the setup ({detail}). It might be complete: re-run the command to check."
+# scripts/bootstrap.sh:498 [set_state]
+verify_workflow_mismatch = """
+After the push, the remote does not hold the expected workflow.
+It may have been changed by someone else, or the push failed.
+Re-run the same command to check."""
+# scripts/bootstrap.sh:506 [set_state]  placeholders: branch
+verify_output_branch_missing = "I couldn't find {branch} on the remote after the push."
+# scripts/bootstrap.sh:516 [echo]
+status_installed = "Added"
+# scripts/bootstrap.sh:517 [echo]
+status_present = "Already there"
+# scripts/bootstrap.sh:518 [echo]
+status_planned = "Planned"
+# scripts/bootstrap.sh:519 [echo]
+status_pending = "Pending"
+# scripts/bootstrap.sh:520 [echo]
+status_failed = "Failed"
+# scripts/bootstrap.sh:521 [echo]
+status_skipped = "Not Complete"
+# scripts/bootstrap.sh:522 [echo]
+status_default = "-"
+# scripts/bootstrap.sh:548 [note]
+dry_run_protected_unknown = """
+During a dry run, I cannot determine if a branch is protected. When using the --protected argument live,
+a push against a protected branch makes me open a pull request."""
+# scripts/bootstrap.sh:550 [note]
+dry_run_gh_found = "I found the GitHub CLI (gh). I will open any pull request that is needed."
+# scripts/bootstrap.sh:552 [note]
+dry_run_gh_missing = "I couldn't find the GitHub CLI (gh). You can install it, or open and merge any pull requests that are needed by hand. To install it, see https://cli.github.com (on macOS/Linux, run: `brew install gh`)."
+# scripts/bootstrap.sh:555 [note]
+dry_run_done = "[dry-run]: I made no changes to the remote, and have not verified anything."
+# scripts/bootstrap.sh:559 [echo]
+setup_incomplete = "Setup is Incomplete. Fix the cause shown above and run the same command again; work that is already done is not repeated."
+# scripts/bootstrap.sh:563 [note]  placeholders: workflow_file
+setup_pending = "Setup is Pending. Merge the pull request for each branch marked Pending (its diff should show only {workflow_file}), then run the same command again to verify it (exit status 3)."
+# scripts/bootstrap.sh:566 [note]
+setup_complete = "Setup complete and verified on the remote: each branch above builds the bites on its next push."
+# scripts/bootstrap.sh:567 [note]
+setup_complete_pull = "Update your local repository with `git pull` or `git fetch` (the workflow is a new commit on each branch)."
+# scripts/bootstrap.sh:568 [note]
+setup_complete_reminder = "Reminder: builds never write to a source branch, but applying patches does, so patches need a branch that accepts direct pushes. Keep the bites/* output branches unprotected, because every build pushes to them."
+# scripts/bootstrap.sh:80 [die]  placeholders: message
+prefix_error = "=> Fatal Error: {message}"
+# scripts/bootstrap.sh:82 [warn]  placeholders: message
+prefix_warning = "==> Warning: {message}"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]  placeholders: message
+prefix_note = "==> {message}"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]  placeholders: option
+option_needs_value = "{option} needs a value"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]  placeholders: option
+config_option_needs_value = "{option} needs KEY=VALUE"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]
+url_option_needs_value = "--url needs a value"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]
+action_url_option_needs_value = "--action-url needs a value"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]
+output_branch_init_commit = "bites: init"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]
+summary_title = "Summary"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]
+heading_branch = "Branch"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]
+heading_workflow = "Workflow"
+# scripts/bootstrap.sh [added by hand: the extractor missed it]
+heading_output_branch = "bites Output Branch"
+# scripts/bootstrap.sh [echo]
+no_output_branch_row = "No bites Output Branch"
+# scripts/bootstrap.sh [echo]  placeholders: branch, detail
+detail_workflow = "    workflow:{branch}: {detail}"
+# scripts/bootstrap.sh [echo]  placeholders: branch, detail
+detail_output_branch = "    output:{branch}: {detail}"
+
+[cleanup]
+# scripts/cleanup.sh [help text, one block]
+help = '''
+cleanup.sh - Delete the bites/<branch> output branch after <branch> itself has been deleted.
+
+Run inside a git clone whose `origin` is the repository (the cleanup action does this).
+Settings come from environment variables:
+  BRANCH          name of the deleted branch, without refs/heads/   (required)
+  REF_TYPE        what was deleted: branch or tag (default branch)
+  DEFAULT_BRANCH  the repository's default branch, which is never cleaned up
+  DRY_RUN         "true" reports what would be deleted and deletes nothing
+
+It does nothing (exit 0) unless ALL of these hold, so a stray event can never remove
+something it should not:
+  * A branch was deleted (not a tag)
+  * The branch is not the default branch and not itself a bites/* branch
+  * The branch does not exist again (deleted and re-created, or restored, in the meantime)
+  * An output branch named bites/<branch> exists
+A bites output branch holds only derived data, so deleting one is cheap to undo: run
+scripts/bootstrap.sh for the branch again and the next push reprocesses it.
+'''
+# scripts/cleanup.sh:29 [note]  placeholders: ref_type
+not_a_branch = "A {ref_type} was deleted, not a branch; there is nothing to do."
+# scripts/cleanup.sh:30 [note]  placeholders: branch
+output_branch = "{branch} is a bites output branch; there is nothing to do."
+# scripts/cleanup.sh:31 [note]  placeholders: branch
+default_branch = "{branch} is the default branch; there is nothing to do."
+# scripts/cleanup.sh:33 [note]  placeholders: branch, output_branch
+branch_exists_again = "{branch} exists again; keeping {output_branch}."
+# scripts/cleanup.sh:36 [note]  placeholders: output_branch
+no_output_branch = "No {output_branch} branch exists; there is nothing to do."
+# scripts/cleanup.sh:38 [note]  placeholders: output_branch
+dry_run_would_delete = "[dry-run] would delete {output_branch}."
+# scripts/cleanup.sh:40 [note]  placeholders: output_branch
+deleted = "Deleted {output_branch}."
+# scripts/cleanup.sh [added by hand: the extractor missed it]
+branch_not_set = "BRANCH is not set."
+# scripts/cleanup.sh [die]  placeholders: message
+prefix_error = "=> Fatal Error: {message}"
+# scripts/cleanup.sh [note]  placeholders: message
+prefix_note = "==> {message}"
+
+[prune]
+# scripts/prune.sh [help text, one block]
+help = '''
+prune.sh - Find (and optionally delete) bites/<branch> output branches whose source branch no
+longer exists. Use it for output branches orphaned before the cleanup job existed, or when a
+delete event was missed. Without --delete it only lists them.
+
+usage: scripts/prune.sh [--delete] [--ssh] [--url URL] OWNER/REPO
+
+  --delete   delete the orphaned output branches instead of only listing them
+  --ssh      talk to GitHub over SSH instead of HTTPS
+  --url URL  use this repository URL instead (used by the tests)
+  -h, --help show this text
+
+An orphaned bites output branch is one whose source branch no longer exists, such as bites/feature-x
+when feature-x has been deleted.
+Exit Status: 0: Success, no orphans found; non-zero: Bad arguments or git errors.
+'''
+# scripts/prune.sh:18 [die]  placeholders: message
+prefix_error = "=> Fatal Error: {message}"
+# scripts/prune.sh:27 [die]  placeholders: option
+unknown_option = "Unknown option: {option}."
+# scripts/prune.sh:33 [die]  placeholders: target
+target_invalid = "Target must follow the format OWNER/REPO: {target}."
+# scripts/prune.sh:39 [die]  placeholders: url
+could_not_read = "Could not read from {url}"
+# scripts/prune.sh:54 [echo]  placeholders: name
+deleted = "Deleted: {name}"
+# scripts/prune.sh:56 [echo]  placeholders: name
+orphan = "Orphan:  {name}"
+# scripts/prune.sh:60 [echo]                           x
+none_found = "No orphaned bites/* branches found."
+# scripts/prune.sh:61 [echo]  placeholders: count
+found_summary = "{count} orphaned branches found; run again with `--delete` to remove them."
+# scripts/prune.sh [added by hand: the extractor missed it]
+url_option_needs_value = "--url needs a value"
+
+[action]
+# action.yml:93 [echo]  placeholders: branch
+no_output_branch = "I couldn't find the bites/{branch} branch; there is nothing to do."
+# action.yml:138 [commit or pull request text]
+commit_patches = "bites: apply patches"
+# action.yml:198 [commit or pull request text]  placeholders: commit
+commit_build = "bites: {commit}"
+# action.yml:44 [yaml]
+description = "MCP read limits truncate large files. On its own branch, bites copies files as exact, size-capped bites; patches apply edits"
+# action.yml:49 [yaml]
+bite_rebuild = "'true' reprocesses and re-outputs every large file instead of only changed ones"
+# action.yml:53 [yaml]
+bite_max_chars = "Largest bite and the size above which a file is processed, in characters. Empty keeps the value from bites.toml or the default (27000)"
+# action.yml:57 [yaml]
+bite_read_cap = "The connector's per-result limit in characters; a bite plus the connector's wrapper must fit under it. Empty keeps the value from bites.toml or the default (28000)"
+# action.yml:61 [yaml]
+bite_include = "Globs of the files to process, one per line; replaces the default list. Empty keeps the list from bites.toml or the default"
+# action.yml:65 [yaml]
+bite_exclude = "Globs of files to omit, one per line; replaces the default list (node_modules). .git, .github, .bites-patches and bites.toml are always left out. Empty keeps the list from bites.toml or the default"
+# action.yml:73 [yaml step name; from list_messages, the extractor missed it]
+step_checkout_source = "Check out source branch"
+# action.yml:81 [yaml step name; from list_messages, the extractor missed it]
+step_gate = "Opt-in gate and settings"
+# action.yml:105 [yaml step name; from list_messages, the extractor missed it]
+step_checkout_bites = "Check out output branch"
+# action.yml:112 [yaml step name; from list_messages, the extractor missed it]
+step_python = "Set up Python"
+# action.yml:120 [yaml step name; from list_messages, the extractor missed it]
+step_apply = "Apply pending patches"
+# action.yml:130 [yaml step name; from list_messages, the extractor missed it]
+step_commit_patches = "Commit applied patches to the source branch"
+# action.yml:146 [yaml step name; from list_messages, the extractor missed it]
+step_build = "Build bites"
+# action.yml:164 [yaml step name; from list_messages, the extractor missed it]
+step_verify = "Verify round trip"
+# action.yml:178 [yaml step name; from list_messages, the extractor missed it]
+step_record_failure = "Record failure (leave bites untouched, publish only last_build.json)"
+# action.yml:189 [yaml step name; from list_messages, the extractor missed it]
+step_publish = "Publish to output branch"
+
+[cleanup_action]
+# cleanup/action.yml:47 [echo]  placeholders: action_path, script
+script_not_found = "cleanup.sh not found at {script} (action path: {action_path})"
+# cleanup/action.yml:14 [yaml]
+name = "bites cleanup"
+# cleanup/action.yml:15 [yaml]
+description = "Delete the output branch bites/<branch> when its source branch is deleted."
+# cleanup/action.yml:20 [yaml]
+input_dry_run = "'true' reports what would be deleted without deleting it"
+# cleanup/action.yml:29 [yaml step name; from list_messages, the extractor missed it]
+step_checkout = "Check out repository"
+# cleanup/action.yml:36 [yaml step name; from list_messages, the extractor missed it]
+step_delete = "Delete the output branch"
+
+[template]
+# templates/bites.yml [comment block copied into every installed workflow]
+help = '''
+.github/workflows/bites.yml
+
+TEMPLATE for the workflow. scripts/bootstrap.sh copies it into a project and fills
+in the two placeholders on the `uses:` lines below: the repository that holds the actions
+(default imdebating/bites) and the version (default v1). Until then it is not a valid
+workflow.
+
+Thin wrapper: All of the work is done by the bites action; this file only decides WHEN
+to run and WHAT the jobs may do. Do not edit the steps. To change the version, change the
+ref after @ (a moving major tag such as v1, an exact tag, or a full commit SHA), or
+re-run the bootstrap script with --workflow-version (-v).
+
+Optional settings go under `with:` next to `full`: max-chars, read-cap, include and
+exclude (see the README). They override a bites.toml in the project. Give them to the
+bootstrap script as -c/--config KEY=VALUE, so that running it again keeps them.
+
+Two jobs:
+  bites    on every push (and by hand): process large files and apply patch files.
+  cleanup  when a branch is deleted: delete that branch's bites/<branch> output branch.
+
+Opt-in per branch: nothing is built unless a branch named bites/<branch> exists.
+A push-triggered run uses the copy of this file in the pushed commit, so every branch that
+should build needs its own copy. The bootstrap script adds it to each branch you name (or
+to all of them with --all-branches), next to the bites/<branch> output branch. A branch created
+later gets the file when it is created from a branch that has it; otherwise run the
+bootstrap script again. A delete-triggered run always uses the copy on the DEFAULT branch,
+so the cleanup job needs the file on the default branch only.
+Push to <branch> (applied patches), to bites/<branch> (bites) and delete bites/<branch>
+(cleanup). Nothing else.
+'''
+# templates/bites.yml:41 [yaml]
+input_full = "Reprocess and re-output every large file instead of only changed ones"
+
+[build]
+# bites_tool/build.py:56 [print]  placeholders: warning
+warning = "bites build: Warning: {warning}"
+# bites_tool/build.py:130 [raise]  placeholders: chars, limit
+manifest_too_big = "manifest.json is {chars} chars, over manifest_max_chars={limit}; too many large files for one manifest"
+# bites_tool/build.py:162 [print]  placeholders: files, rebuilt, removed
+build_summary = "bites build: {files} processed file(s), {rebuilt} rebuilt, {removed} removed"
+# bites_tool/build.py:181 [raise]
+manifest_unreadable = "manifest.json missing or unreadable"
+# bites_tool/build.py:186 [append]  placeholders: name
+file_over_manifest_limit = "{name} exceeds manifest_max_chars"
+# bites_tool/build.py:203 [append]  placeholders: cap, file, length, bite, wrapper
+bite_over_read_cap = "{file} bite {bite}: {length}+{wrapper} chars exceeds read_cap {cap} (lower max_chars)"
+# bites_tool/build.py:205 [append]  placeholders: chars, file, max_chars, bite
+bite_over_max_chars = "{file} bite {bite}: chars {chars} > max_chars {max_chars}"
+# bites_tool/build.py:207 [append]  placeholders: file, bite
+bite_start_line_differs = "{file} bite {bite}: start_line differs from manifest"
+# bites_tool/build.py:209 [append]  placeholders: file
+reassembled_bytes_differ = "{file}: reassembled bytes do not match manifest"
+# bites_tool/build.py:211 [append]  placeholders: file
+reassembled_chars_differ = "{file}: reassembled char count differs from manifest"
+# bites_tool/build.py:214 [append]  placeholders: file
+missing_from_source = "{file}: listed in manifest but missing from source"
+# bites_tool/build.py:216 [append]  placeholders: file
+differs_from_source = "{file}: reassembled bites differ from the source file (stale bites?)"
+# bites_tool/build.py:224 [append]  placeholders: file, max_chars
+not_in_manifest = "{file}: over {max_chars} chars but not in manifest"
+# bites_tool/build.py:231 [append]  placeholders: path
+orphan_bite_file = "Orphan bite file: {path}"
+# bites_tool/build.py:234 [other]  placeholders: count
+verify_more = " (+{count} more)"
+# bites_tool/build.py:235 [raise]  placeholders: errors, more
+verify_failed = "Verification failed: {errors}{more}"
+# bites_tool/build.py:236 [print]  placeholders: files, bites
+verify_ok = "bites verify: ok, {files} file(s), {bites} bite(s)"
+# bites_tool/build.py:248 [raise]  placeholders: file
+file_not_segmented = "{file} is not processed in this manifest"
+# bites_tool/build.py:271 [other]
+failure_see_log = "See the workflow run log"
+# bites_tool/build.py [new: a step that ran outside the bites tool failed]  placeholders: branch, detail
+commit_failed = "The applied patches could not be committed to {branch} (git said: {detail}). The patch file is still in .bites-patches/ and blocks every later build until it is fixed or deleted."
+# bites_tool/build.py [new: the push was refused because the branch requires pull requests]  placeholders: branch, detail
+commit_rejected_protected = "The applied patches could not be pushed to {branch}, because it requires pull requests (git said: {detail}). Patches work only on a branch that accepts direct pushes: delete the patch file with a pull request, apply the patch on another branch, and merge that branch into {branch}."
+
+[cli]
+# bites_tool/cli.py:1 [help (module docstring)]
+description = "bites - Output large text files into exact, reversible, size-capped bites."
+# bites_tool/cli.py:38 [help]
+help_status = "On failure, write a JSON error record to this path"
+# bites_tool/cli.py:44 [help]
+help_toml = "The configuration file (default bites.toml); -c toml_file=FILE does the same"
+# bites_tool/cli.py:51 [help]
+help_config = "Override a setting (max_chars, read_cap, include, exclude, or toml_file); repeat for more, repeated include/exclude options add to one list"
+# bites_tool/cli.py:55 [help]
+help_apply = "Apply pending patch files"
+# bites_tool/cli.py:56 [help]
+help_src = "Source repository root"
+# bites_tool/cli.py:57 [help]
+help_patches = "Patch directory, relative to --src"
+# bites_tool/cli.py:58 [help]
+help_report = "Write the per-section patch report (JSON) here"
+# bites_tool/cli.py:62 [help]
+help_build = "Write bites, manifest.json and last_build.json"
+# bites_tool/cli.py:65 [help]
+help_out = "Checkout of the bites/<branch> tree"
+# bites_tool/cli.py:66 [help]
+help_recorded = "Recorded in the manifest"
+# bites_tool/cli.py:68 [help]
+help_patch_report = "Report written by `apply`, copied into last_build.json"
+# bites_tool/cli.py:69 [help]
+help_full = "Reprocess every large file"
+# bites_tool/cli.py:74 [help]
+help_verify = "Check the output tree against the source tree"
+# bites_tool/cli.py:82 [help]
+help_reassemble = "Write one original file to stdout"
+# bites_tool/cli.py:84 [help]
+help_file = "Source path as listed in the manifest"
+# bites_tool/cli.py:88 [help]
+help_report_failure = "Turn a failure status into last_build.json"
+# bites_tool/cli.py [new help]
+help_note_failure = "Record the failure of a step that ran outside the bites tool, for report-failure"
+# bites_tool/cli.py [new help]
+help_stage = "The step that failed"
+# bites_tool/cli.py [new help]
+help_detail_file = "A file holding what the failed step printed"
+# bites_tool/cli.py [new help]
+help_failed_branch = "The branch the failed step pushed to"
+# bites_tool/cli.py:110 [raise]
+toml_file_needs_name = "toml_file needs a file name: -c toml_file=FILE"
+# bites_tool/cli.py:131 [other]  placeholders: message, type
+unexpected_error = "{type}: {message}"
+# bites_tool/cli.py:132 [print]  placeholders: command, message
+error_line = "bites {command}: Error: {message}"
+# bites_tool/cli.py [new: title of the ::error and ::warning annotations]  placeholders: command
+annotation_title = "bites {command}"
+
+[core]
+# bites_tool/core.py:195 [raise]  placeholders: key, value
+setting_not_whole_number = "{key} must be a whole number, not {value}"
+# bites_tool/core.py:222 [raise]  placeholders: item, keys
+config_item_invalid = "--config expects KEY=VALUE, with KEY one of {keys}: {item}"
+# bites_tool/core.py:242 [raise]  placeholders: error, path
+config_unreadable = "Cannot read config {path}: {error}"
+# bites_tool/core.py:252 [raise]
+max_chars_not_positive = "max_chars must be positive"
+# bites_tool/core.py:254 [raise]
+read_cap_not_positive = "read_cap must be positive"
+# bites_tool/core.py:257 [raise]
+include_empty = "Include must not be empty (leave it out to use the default list)"
+# bites_tool/core.py:274 [return]  placeholders: max_chars, read_cap, room
+too_little_room = "max_chars {max_chars} leaves too little room under read_cap {read_cap} for the bite header and footer; use at most {room}, or verification will fail"
+# bites_tool/core.py:288 [raise]  placeholders: error
+git_ls_files_failed = "git ls-files failed: {error}"
+# bites_tool/core.py:369 [raise]
+bite_header_bad = "Malformed or missing BITE header"
+# bites_tool/core.py:373 [raise]  placeholders: chars, bite, path, total
+bite_body_short = "{path} bite {bite}/{total}: body shorter than chars={chars} (truncated?)"
+# bites_tool/core.py:376 [raise]  placeholders: bite, path, total
+bite_footer_wrong = "{path} bite {bite}/{total}: footer missing or wrong (truncated?)"
+# bites_tool/core.py:378 [raise]  placeholders: bite, path, total
+bite_sha_mismatch = "{path} bite {bite}/{total}: body does not match header sha256"
+# bites_tool/core.py:411 [raise]  placeholders: error, path
+bite_unreadable = "Cannot read {path}: {error}"
+# bites_tool/core.py:414 [raise]  placeholders: file, bite, path, total
+bite_header_mismatch = "{path}: header says {file} {bite}/{total}"
+
+[patches]
+# bites_tool/patches.py:58 [raise]  placeholders: line, name
+empty_find = "{name}:{line}: Empty FIND text"
+# bites_tool/patches.py:73 [raise]  placeholders: line, name
+text_outside_block = "{name}:{line}: Text outside a FIND/REPLACE/APPEND block"
+# bites_tool/patches.py:80 [raise]  placeholders: line, name
+file_before_end = "{name}:{line}: FILE before END of the previous section"
+# bites_tool/patches.py:82 [raise]  placeholders: line, name
+file_needs_path = "{name}:{line}: FILE needs a path"
+# bites_tool/patches.py:85 [raise]  placeholders: kind, line, name
+kind_outside_file = "{name}:{line}: {kind} outside a FILE section"
+# bites_tool/patches.py:92 [raise]  placeholders: kind, line, name
+kind_without_replace = "{name}:{line}: {kind} while a FIND has no REPLACE"
+# bites_tool/patches.py:96 [raise]  placeholders: line, name
+replace_without_find = "{name}:{line}: REPLACE without FIND"
+# bites_tool/patches.py:100 [raise]  placeholders: line, name
+find_without_replace = "{name}:{line}: FIND without REPLACE"
+# bites_tool/patches.py:102 [raise]  placeholders: line, name, path
+section_no_operations = "{name}:{line}: Section for {path} has no operations"
+# bites_tool/patches.py:104 [raise]  placeholders: line, name
+new_files_append_only = "{name}:{line}: NEW files accept APPEND only"
+# bites_tool/patches.py:106 [raise]  placeholders: line, name, path
+needs_base = "{name}:{line}: {path} needs a BASE blob SHA (or NEW)"
+# bites_tool/patches.py:110 [raise]  placeholders: name
+missing_end = "{name}: Missing @@@ END"
+# bites_tool/patches.py:112 [raise]  placeholders: name
+no_sections = "{name}: No sections"
+# bites_tool/patches.py:124 [raise]  placeholders: path
+unsafe_path = "Unsafe patch path: {path}"
+# bites_tool/patches.py:153 [raise]  placeholders: file, patch
+already_exists = "{patch}: {file} already exists (section marked NEW)"
+# bites_tool/patches.py:157 [raise]  placeholders: file, patch
+does_not_exist = "{patch}: {file} does not exist"
+# bites_tool/patches.py:160 [raise]  placeholders: file, patch
+base_too_short = "{patch}: {file}: BASE must be at least 12 hex characters"
+# bites_tool/patches.py:164 [raise]  placeholders: actual, base, file, patch
+base_mismatch = "{patch}: {file}: BASE {base} does not match current blob {actual}; re-read the file and rewrite the patch"
+# bites_tool/patches.py:170 [raise]  placeholders: file, patch
+not_utf8 = "{patch}: {file} is not UTF-8"
+# bites_tool/patches.py:185 [raise]  placeholders: count, file, operation, patch, text
+find_count = "{patch}: {file}: operation {operation}: FIND text matched {count} time(s), need exactly 1: {text}"
+# bites_tool/patches.py:212 [print]
+apply_none = "bites apply: no patches"
+# bites_tool/patches.py:236 [print]  placeholders: files, patches
+apply_done = "bites apply: applied {patches} patch file(s), {files} file(s) changed"

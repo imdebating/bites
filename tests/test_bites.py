@@ -109,8 +109,8 @@ def test_glob_matches_root_and_nested():
     assert core.glob_to_re(".git/**").match(".git/config")
 
 
-def test_denied_names_never_chunked_even_if_included(tmp_path):
-    """Secret-like names (.env*) are never chunked even when an include glob matches them."""
+def test_denied_names_never_processed_even_if_included(tmp_path):
+    """Secret-like names (.env*) are never processed even when an include glob matches them."""
     src, cfg, out = make_repo(tmp_path, {".env": "S" * 500, "a/.env.local": "S" * 500, "ok.md": "x" * 500})
     assert build(src, cfg, out) == 0
     assert list(manifest(out)["files"]) == ["ok.md"]
@@ -125,7 +125,7 @@ def test_roundtrip_real_limit(tmp_path):
     assert build(src, cfg, out) == 0
     assert verify(src, cfg, out) == 0
     man = manifest(out)["files"]
-    # At or below the limit: not chunked, no entry.
+    # At or below the limit: not processed, no entry.
     assert "f26999.md" not in man and "f27000.md" not in man
     assert man["f27001.md"]["parts"] == 2
     assert man["f54000.md"]["parts"] == 2  # exact multiple: no empty third part
@@ -193,8 +193,8 @@ def test_header_quotes_awkward_paths(tmp_path):
 
 
 # ---------------------------------------------------- replacement behaviour
-def test_rebuild_is_deterministic_and_incremental(tmp_path):
-    """Rebuilding unchanged input is byte-identical; editing the tail rewrites only the last part."""
+def test_reprocessing_is_deterministic_and_incremental(tmp_path):
+    """Reprocessing unchanged input is byte-identical; editing the tail rewrites only the last part."""
     src, cfg, out = make_repo(tmp_path, {"big.md": "a" * 250, "other.md": "b" * 250})
     build(src, cfg, out)
     first = tree(out)
@@ -250,7 +250,7 @@ def test_deleted_source_removes_parts(tmp_path):
     assert verify(src, cfg, out) == 0
 
 
-def test_full_flag_and_max_chars_change_rebuild_everything(tmp_path):
+def test_full_flag_and_max_chars_change_reprocess_everything(tmp_path):
     """Changing max_chars invalidates the previous output and re-splits at the new size."""
     src, cfg, out = make_repo(tmp_path, {"big.md": "a" * 250})
     build(src, cfg, out)

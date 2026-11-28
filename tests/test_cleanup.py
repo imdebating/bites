@@ -1,4 +1,4 @@
-"""Tests for scripts/cleanup.sh: when the mirror of a deleted branch is, and is not, deleted.
+"""Tests for scripts/cleanup.sh: when the output branch of a deleted branch is, and is not, deleted.
 
 Each test builds a bare remote, deletes a source branch in it (as GitHub does), clones it,
 and runs the real script inside the clone with the environment the action would provide.
@@ -15,15 +15,15 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def cleanup(tmp_path, existing, mirrors, deleted, remove=True, **overrides):
-    """Make a remote with `existing` branches and `mirrors`, then run cleanup for `deleted`.
+def cleanup(tmp_path, existing, output_branches, deleted, remove=True, **overrides):
+    """Make a remote with `existing` branches and `output_branches`, then run cleanup for `deleted`.
 
     `deleted` is the branch name passed to the script. With remove=True (the normal case) it
     is first deleted from the remote, as GitHub would have done; remove=False simulates a
     branch that exists again by the time the script runs. Returns (script result, the
     branch names left on the remote).
     """
-    bare, env = make_remote(tmp_path, branches=existing, mirrors=mirrors)
+    bare, env = make_remote(tmp_path, branches=existing, output_branches=output_branches)
     if remove and deleted in existing:
         sh(["git", "update-ref", "-d", f"refs/heads/{deleted}"], cwd=bare, env=env)
     work = tmp_path / "work"
@@ -34,8 +34,8 @@ def cleanup(tmp_path, existing, mirrors, deleted, remove=True, **overrides):
     return r, branches(bare, env)
 
 
-def test_deletes_mirror_of_deleted_branch(tmp_path):
-    """Deleting `feature` removes bites/feature and leaves every other mirror alone."""
+def test_deletes_output_branch_of_deleted_branch(tmp_path):
+    """Deleting `feature` removes bites/feature and leaves every other output branch alone."""
     r, left = cleanup(tmp_path, ["feature", "other"], ["feature", "other", "main"], "feature")
     assert r.returncode == 0, r.stderr
     assert "bites/feature" not in left
@@ -43,20 +43,20 @@ def test_deletes_mirror_of_deleted_branch(tmp_path):
 
 
 def test_branch_names_with_slashes(tmp_path):
-    """A branch such as feature/login has the mirror bites/feature/login, and it is removed."""
+    """A branch such as feature/login has the output branch bites/feature/login, and it is removed."""
     r, left = cleanup(tmp_path, ["feature/login"], ["feature/login"], "feature/login")
     assert r.returncode == 0, r.stderr
     assert "bites/feature/login" not in left
 
 
-def test_keeps_mirror_when_source_exists_again(tmp_path):
-    """If the source branch exists when the script runs (restored or re-created), keep the mirror."""
+def test_keeps_output_branch_when_source_exists_again(tmp_path):
+    """If the source branch exists when the script runs (restored or re-created), keep the output branch."""
     r, left = cleanup(tmp_path, ["feature"], ["feature"], "feature", remove=False)
     assert r.returncode == 0 and "exists again" in r.stdout
     assert "bites/feature" in left
 
 
-def test_never_touches_default_branch_mirror(tmp_path):
+def test_never_touches_default_branch_output_branch(tmp_path):
     """bites/main is kept even if an event names the default branch."""
     r, left = cleanup(tmp_path, [], ["main"], "main")
     assert r.returncode == 0 and "bites/main" in left
@@ -69,18 +69,18 @@ def test_ignores_output_branches(tmp_path):
 
 
 def test_ignores_tags(tmp_path):
-    """A deleted tag with the same name as a mirrored branch removes nothing."""
+    """A deleted tag with the same name as an output branch removes nothing."""
     r, left = cleanup(tmp_path, [], ["v1"], "v1", REF_TYPE="tag")
     assert r.returncode == 0 and "bites/v1" in left
 
 
-def test_nothing_to_do_without_a_mirror(tmp_path):
-    """A deleted branch that was never mirrored is a quiet success."""
+def test_nothing_to_do_without_a_output_branch(tmp_path):
+    """A deleted branch that was never processed is a quiet success."""
     r, left = cleanup(tmp_path, ["plain"], [], "plain")
-    assert r.returncode == 0 and "no bites/plain branch" in r.stdout
+    assert r.returncode == 0 and "No bites/plain branch" in r.stdout
 
 
 def test_dry_run_deletes_nothing(tmp_path):
-    """DRY_RUN=true reports the deletion but leaves the mirror in place."""
+    """DRY_RUN=true reports the deletion but leaves the output branch in place."""
     r, left = cleanup(tmp_path, ["feature"], ["feature"], "feature", DRY_RUN="true")
     assert r.returncode == 0 and "[dry-run]" in r.stdout and "bites/feature" in left

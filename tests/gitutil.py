@@ -6,6 +6,17 @@ the results.
 """
 import os
 import subprocess
+from pathlib import Path
+
+
+def bootstrap_script():
+    """The bootstrap script the tests run: scripts/bootstrap.sh, or the file that BITES_BOOTSTRAP_SCRIPT names.
+
+    The release workflow sets the variable to the built one-file copy in an otherwise empty directory,
+    so that the whole bootstrap test suite runs against what users download.
+    """
+    override = os.environ.get("BITES_BOOTSTRAP_SCRIPT")
+    return Path(override) if override else Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
 
 
 def sh(args, cwd=None, env=None, check=True):
@@ -18,10 +29,11 @@ def sh(args, cwd=None, env=None, check=True):
     return r
 
 
-def make_remote(tmp_path, branches=(), mirrors=()):
-    """Create a bare remote with `main`, the given source `branches` and bites/ `mirrors`.
 
-    Returns (path of the bare remote, git environment). Mirrors are empty-tree root commits,
+def make_remote(tmp_path, branches=(), output_branches=()):
+    """Create a bare remote with `main`, the given source `branches` and bites/ `output_branches`.
+
+    Returns (path of the bare remote, git environment). Output branches are empty-tree root commits,
     like the ones scripts/bootstrap.sh creates.
     """
     home = tmp_path / "home"
@@ -46,7 +58,7 @@ def make_remote(tmp_path, branches=(), mirrors=()):
     for b in branches:
         sh(["git", "push", "--quiet", "origin", f"main:refs/heads/{b}"], cwd=seed, env=env)
     empty = sh(["git", "mktree"], cwd=seed, env=env).stdout.strip()
-    for m in mirrors:
+    for m in output_branches:
         c = sh(["git", "commit-tree", empty, "-m", "bites: init"], cwd=seed, env=env).stdout.strip()
         sh(["git", "push", "--quiet", "origin", f"{c}:refs/heads/bites/{m}"], cwd=seed, env=env)
     return bare, env

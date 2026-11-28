@@ -4,10 +4,10 @@ import shutil
 from pathlib import Path
 
 import pytest
-from gitutil import branches, make_remote, sh
+from gitutil import bootstrap_script, branches, make_remote, sh
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / "scripts" / "bootstrap.sh"
+SCRIPT = bootstrap_script()
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
 )
@@ -17,7 +17,7 @@ SETTING_LINE = re.compile(r"^\s+(max-chars|read-cap|include|exclude):", re.MULTI
 
 
 def run(bare, env, *extra):
-    """Run bootstrap.sh against the bare remote for owner/repo, mirroring main."""
+    """Run bootstrap.sh against the bare remote for owner/repo, processing main."""
     return sh(
         ["bash", str(SCRIPT), "--url", str(bare), "--action-from", "imdebating/bites", *extra, "owner/repo", "main"],
         env=env,

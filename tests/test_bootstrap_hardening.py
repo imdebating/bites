@@ -4,9 +4,9 @@ import shutil
 from pathlib import Path
 
 import pytest
-from gitutil import branches, make_remote, sh
+from gitutil import bootstrap_script, branches, make_remote, sh
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
+SCRIPT = bootstrap_script()
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
 )
@@ -21,7 +21,7 @@ def test_invisible_character_in_branch_name_is_rejected(tmp_path):
         check=False,
     )
     assert r.returncode != 0
-    assert "other than letters, digits" in r.stderr
+    assert "contains unexpected characters" in r.stderr
     assert branches(bare, env) == {"main"}
 
 
@@ -29,7 +29,7 @@ def test_missing_source_branch_is_reported_by_name(tmp_path):
     bare, env = make_remote(tmp_path)
     r = sh(["bash", str(SCRIPT), "--url", str(bare), "owner/repo", "nope"], env=env, check=False)
     assert r.returncode != 0
-    assert "source branch nope does not exist on the remote" in r.stderr
+    assert "I cannot find the nope branch on the remote" in r.stderr
 
 
 def test_unreachable_remote_is_not_reported_as_a_missing_branch(tmp_path):
@@ -50,5 +50,5 @@ def test_unreachable_remote_is_not_reported_as_a_missing_branch(tmp_path):
     env2 = dict(env, PATH=f"{fake}:{os.environ['PATH']}")
     r = sh(["bash", str(SCRIPT), "--url", str(bare), "owner/repo", "main"], env=env2, check=False)
     assert r.returncode != 0
-    assert "could not ask the remote" in r.stderr
-    assert "does not exist" not in r.stderr
+    assert "unable to ask the remote" in r.stderr
+    assert "I cannot find the" not in r.stderr

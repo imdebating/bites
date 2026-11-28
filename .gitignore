@@ -14,11 +14,16 @@
 # -------------
 # Git Ignore file for IFF
 
+# Temp Directories
+tmp/
+temp/
+
 # Python Ignore Rules
 __pycache__/
 *.py[cod]
 *$py.class
 .venv/
+dist/
 
 ## Secrets
 .env

@@ -15,7 +15,7 @@ SOURCE FILE SELECTION
     matches both `README.md` and `a/b/c.md`.
 
 SPLITTING RULE
-    A file whose length is <= `max_chars` is NOT chunked and produces no output.
+    A file whose length is <= `max_chars` is NOT processed and produces no output.
     A longer file is cut at exact multiples of `max_chars` code points (no attempt to
     respect lines, words or syntax); the last part holds the remainder, so a file of
     `max_chars + 1` characters yields parts of `max_chars` and 1.
@@ -36,7 +36,7 @@ PART FILE FORMAT (exact)
     end of a file rewrites only the last part(s).
 
 OUTPUT LAYOUT (the tree of the `bites/<branch>` branch)
-    manifest.json                 index of every chunked file (see build.py)
+    manifest.json                 index of every processed file (see build.py)
     last_build.json               result of the latest run (see build.py)
     parts/<source path>/NNNN-of-MMMM.txt
                                   one file per part; NNNN = part number, MMMM = total.
@@ -54,7 +54,7 @@ CONFIGURATION
          wins over the environment; repeated `--config include=...` / `exclude=...` options
          accumulate into one list.
     Every key is optional, so a project's bites.toml can be one line long.
-    max_chars            no-chunk threshold and maximum part body        (default 27000)
+    max_chars            do-not-process threshold and maximum part size  (default 27000)
     read_cap             measured per-result cap                         (default 28000)
     include, exclude     glob lists (defaults: DEFAULT_INCLUDE and DEFAULT_EXCLUDE
                          below). A list that is given replaces the default list; an
@@ -77,16 +77,18 @@ import tomllib
 from pathlib import Path
 from urllib.parse import quote, unquote
 
+from .strings import message
+
 # Version of the manifest / last_build.json layout. A manifest with another value is
 # ignored and everything is rebuilt.
 SCHEMA = 1
 
-# File names (matched against the last path component) that are never chunked, even if
+# File names (matched against the last path component) that are never processed, even if
 # an include glob matches them. They are the usual homes of secrets.
 DENY_BASENAMES = (".env*", "*.pem", "*.key", "id_rsa*")
 
-# Paths that are never mirrored and cannot be added back by any setting: git internals,
-# workflow files, patch files (mirroring them would only add noise) and the configuration.
+# Paths that are never processed and cannot be added back by any setting: git internals,
+# workflow files, patch files (outputting them would only add noise) and the configuration.
 ALWAYS_EXCLUDE = (".git/**", ".github/**", ".bites-patches/**", "bites.toml")
 
 # Which tracked files are eligible when a configuration does not say. Keep in step with
@@ -192,7 +194,7 @@ def parse_setting(key: str, value: str):
     try:
         return int(value.strip())
     except ValueError:
-        raise BitesError(f"{key} must be a whole number, not {value.strip()!r}")
+        raise BitesError(message("core", "setting_not_whole_number", key=key, value=repr(value.strip())))
 
 
 def settings_from_env(env=None) -> dict:
@@ -219,7 +221,7 @@ def collect_overrides(items=(), env=None) -> dict:
         key, sep, text = item.partition("=")
         key = key.strip()
         if not sep or key not in SETTING_KEYS:
-            raise BitesError(f"--config expects KEY=VALUE, with KEY one of {', '.join(SETTING_KEYS)}: {item!r}")
+            raise BitesError(message("core", "config_item_invalid", keys=", ".join(SETTING_KEYS), item=repr(item)))
         value = parse_setting(key, text)
         out[key] = out[key] + value if key in LIST_KEYS and key in seen else value
         seen.add(key)
@@ -239,7 +241,7 @@ def load_config(path, overrides=None) -> dict:
         with open(path, "rb") as fh:
             raw = tomllib.load(fh)
     except (OSError, tomllib.TOMLDecodeError) as exc:
-        raise BitesError(f"cannot read config {path}: {exc}")
+        raise BitesError(message("core", "config_unreadable", path=path, error=exc))
     raw.update(overrides or {})
     cfg = {
         "max_chars": int(raw.get("max_chars", 27000)),
@@ -249,12 +251,12 @@ def load_config(path, overrides=None) -> dict:
     # manifest.json and last_build.json must also be readable in one call.
     cfg["manifest_max_chars"] = int(raw.get("manifest_max_chars", cfg["max_chars"]))
     if cfg["max_chars"] < 1:
-        raise BitesError("max_chars must be positive")
+        raise BitesError(message("core", "max_chars_not_positive"))
     if cfg["read_cap"] < 1:
-        raise BitesError("read_cap must be positive")
+        raise BitesError(message("core", "read_cap_not_positive"))
     include = list(raw.get("include", DEFAULT_INCLUDE))
     if not include:
-        raise BitesError("include must not be empty (leave it out to use the default list)")
+        raise BitesError(message("core", "include_empty"))
     exclude = list(ALWAYS_EXCLUDE) + list(raw.get("exclude", DEFAULT_EXCLUDE))
     cfg["include_re"] = [glob_to_re(p) for p in include]
     cfg["exclude_re"] = [glob_to_re(p) for p in exclude]
@@ -271,8 +273,7 @@ def config_warnings(cfg: dict) -> list[str]:
     room = cfg["read_cap"] - cfg["wrapper_chars"] - PART_OVERHEAD
     if cfg["max_chars"] > room:
         return [
-            f"max_chars {cfg['max_chars']} leaves too little room under read_cap {cfg['read_cap']} "
-            f"for the part header and footer; use at most {room}, or verification will fail"
+            message("core", "too_little_room", max_chars=cfg["max_chars"], read_cap=cfg["read_cap"], room=room)
         ]
     return []
 
@@ -285,7 +286,7 @@ def list_source_files(src: Path) -> list[str]:
     """
     r = subprocess.run(["git", "-C", str(src), "ls-files", "-z"], capture_output=True)
     if r.returncode != 0:
-        raise BitesError("git ls-files failed: " + r.stderr.decode("utf-8", "replace").strip())
+        raise BitesError(message("core", "git_ls_files_failed", error=r.stderr.decode("utf-8", "replace").strip()))
     return sorted(os.fsdecode(p) for p in r.stdout.split(b"\0") if p)
 
 
@@ -366,16 +367,16 @@ def parse_part(text: str):
     """
     m = HEADER_RE.match(text)
     if not m:
-        raise BitesError("bad or missing BITE header")
+        raise BitesError(message("core", "bite_header_bad"))
     path, i, n, chars, start = unquote(m[1]), int(m[2]), int(m[3]), int(m[4]), int(m[5])
     body = text[m.end(): m.end() + chars]
     if len(body) != chars:
-        raise BitesError(f"{path} part {i}/{n}: body shorter than chars={chars} (truncated?)")
+        raise BitesError(message("core", "bite_body_short", path=path, bite=i, total=n, chars=chars))
     tail = text[m.end() + chars:]
     if tail != "\n<<<END BITE %d/%d>>>\n" % (i, n):
-        raise BitesError(f"{path} part {i}/{n}: footer missing or wrong (truncated?)")
+        raise BitesError(message("core", "bite_footer_wrong", path=path, bite=i, total=n))
     if sha256_hex(body.encode("utf-8")) != m[6]:
-        raise BitesError(f"{path} part {i}/{n}: body does not match header sha256")
+        raise BitesError(message("core", "bite_sha_mismatch", path=path, bite=i, total=n))
     return {"file": path, "part": i, "of": n, "chars": chars, "start_line": start}, body
 
 
@@ -408,9 +409,9 @@ def join_parts(out: Path, rel: str, n: int) -> bytes:
         try:
             text = p.read_bytes().decode("utf-8")
         except OSError as exc:
-            raise BitesError(f"cannot read {p}: {exc}")
+            raise BitesError(message("core", "bite_unreadable", path=p, error=exc))
         meta, body = parse_part(text)
         if (meta["file"], meta["part"], meta["of"]) != (rel, i, n):
-            raise BitesError(f"{p}: header says {meta['file']} {meta['part']}/{meta['of']}")
+            raise BitesError(message("core", "bite_header_mismatch", path=p, file=meta["file"], bite=meta["part"], total=meta["of"]))
         bodies.append(body)
     return "".join(bodies).encode("utf-8")

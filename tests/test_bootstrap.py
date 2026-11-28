@@ -13,9 +13,9 @@ import shutil
 from pathlib import Path
 
 import pytest
-from gitutil import make_remote, sh
+from gitutil import bootstrap_script, make_remote, sh
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
+SCRIPT = bootstrap_script()
 WF = ".github/workflows/bites.yml"
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
@@ -48,7 +48,7 @@ def show(bare, env, ref, path):
     return sh(["git", "show", f"{ref}:{path}"], cwd=bare, env=env).stdout
 
 
-def test_installs_workflow_and_creates_mirror_branches(remote):
+def test_installs_workflow_and_creates_output_branches(remote):
     """The caller lands on main with its placeholders filled in; bites/main and bites/dev exist."""
     bare, env = remote
     run(bare, env, "owner/repo", "main", "dev")
@@ -61,7 +61,7 @@ def test_installs_workflow_and_creates_mirror_branches(remote):
 
 
 def test_default_branch_when_none_given(remote):
-    """With no branch arguments only the default branch is mirrored."""
+    """With no branch arguments only the default branch is processed."""
     bare, env = remote
     run(bare, env, "owner/repo")
     r = refs(bare, env)
@@ -102,7 +102,7 @@ def test_dry_run_changes_nothing(remote):
     before = refs(bare, env)
     r = run(bare, env, "--dry-run", "owner/repo", "main")
     assert "[dry-run]" in r.stdout
-    assert "nothing was verified" in r.stdout
+    assert "have not verified anything" in r.stdout
     assert refs(bare, env) == before
 
 

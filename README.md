@@ -7,23 +7,23 @@
 [![Marketplace](https://img.shields.io/badge/Marketplace-bites-2ea44f?logo=github)](https://github.com/marketplace/actions/bites)
 -->
 
-## Does your AI assistant choke on big files?
+## Does Your Ai Assistant Choke on Big Files?
 
 Chat assistants often read a repository through a GitHub connector that cuts every long result off at a fixed size. In our case, that size was about 28,000 characters. The assistant gets half a file, cannot tell what is missing, doesn't warn you about it, and answers anyway.
 
-**bites** fixes that. On every push, it mirrors your large text files onto a separate branch as small, numbered parts that each fit under the limit, plus a manifest the assistant uses to check that it read everything. It can also edit a large file from a small patch, so the file never has to be retyped.
+**_bites_** fixes that. On every push, it outputs your large text files onto a separate branch as small, numbered parts, or **_bites_**, that each fit under the limit, plus a manifest the assistant uses to check that it read everything. It can also edit a large file from a small patch, so the file never has to be retyped.
 
 <div align="center">
 
 ![Never paste code again!](assets/paste.gif "Paste icon surrounded by a red circle with a diagonal line through it")
 
-<h3>Stop pasting files into chat!
+<h3 align="center">Stop pasting files into chat!
 <br>Let your assistant read the whole repository instead<br>&nbsp;</h3>
 </div>
 
 No more copying a file, hitting the size limit, splitting it in two, and explaining which half came first. Point the assistant at your repository, paste the [short instructions](BITES_INSTRUCTIONS.md) once, and it reads each large file part by part and confirms that nothing is missing. Setup is one workflow file, which `scripts/bootstrap.sh` can write for you.
 
-## Is Bites for you?
+## Is Bites For You?
 
 It helps if all of these are true:
 
@@ -39,21 +39,23 @@ under the limit. Binary and non-UTF-8 files are skipped.
 <h3>Truncated reads and silently wrong answers?<br><i>Bites</i> fixes the first so you never get the second.<br>&nbsp;</h3></td></tr></table>
 </div>
 
-## Quick start
+## Quick Start
 
 Requirements: GitHub Actions enabled for the repository, and GitHub-hosted Linux runners (the workflow uses
 `ubuntu-24.04`; other runners are untested). The assistant's token needs read access, and write access if it will push
 patch files.
 
-**Shortcut:** `scripts/bootstrap.sh` does steps 1 and 2 for you, on every branch you choose, for new or existing repositories, and is safe to repeat:
+**Shortcut:** `bootstrap.sh`, attached to every release, does steps 1 and 2 for you, on every branch you choose, for new or existing repositories, and is safe to repeat. Download it and its checksum, check it, and run it:
 
-    git clone https://github.com/imdebating/bites && cd bites
-    scripts/bootstrap.sh OWNER/REPO main feature
-    scripts/bootstrap.sh --all-branches OWNER/REPO
+    curl -fsSLO https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh
+    curl -fsSLO https://github.com/imdebating/bites/releases/latest/download/bootstrap.sh.sha256
+    sha256sum -c bootstrap.sh.sha256
+    bash bootstrap.sh OWNER/REPO main feature
+    bash bootstrap.sh --all-branches OWNER/REPO
 
-Both leave every chosen branch ready to build on its next push, without merging anything (your local checkouts only need a normal `git pull`). See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
+On macOS, check with `shasum -a 256 -c bootstrap.sh.sha256`. Either of the last two commands leaves every chosen branch ready to build on its next push, without merging anything (your local checkouts only need a normal `git pull`). See [Bootstrap and repository settings](docs/bootstrap.md) for its options. To do it by hand:
 
-### 1. Add the workflow to each branch you want mirrored
+### 1. Add the Workflow to Each Branch You Want to Output
 
 Create `.github/workflows/bites.yml`:
 
@@ -67,7 +69,7 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: Rebuild and re-split every large file instead of only changed ones
+        description: Reprocess and re-output every large file instead of only changed ones
         type: boolean
         default: false
 
@@ -96,10 +98,10 @@ jobs:
       - uses: imdebating/bites/cleanup@v1
 ```
 
-A branch needs its own copy of this file to build on push, so add it to every branch you want mirrored (bootstrap does
+A branch needs its own copy of this file to build on push, so add it to every branch you want to involve (bootstrap does
 that for you, as one extra commit per branch). The `delete` trigger always uses the copy on the default branch.
 
-### 2. Create the mirror branch for each branch you want mirrored
+### 2. Create an Output Branch for Each Source Branch You Want to Use
 
 From a clean working tree:
 
@@ -121,7 +123,7 @@ contains the parts. Then give your assistant the instructions in [BITES_INSTRUCT
 
 | Guide | What it covers |
 | - | - |
-| [How it works](docs/how-it-works.md) | The mirror branch, parts and manifest, editing with patches, cleanup, repository layout, releases |
+| [How it works](docs/how-it-works.md) | The output branch, parts and manifest, editing with patches, cleanup, repository layout, releases |
 | [Configuration](docs/configuration.md) | `max_chars`, `read_cap`, `include`, `exclude`, workflow inputs, `bites.toml`, precedence |
 | [Bootstrap and repository settings](docs/bootstrap.md) | `scripts/bootstrap.sh` options and the repository settings the action needs |
 | [Limitations, security and troubleshooting](docs/limitations.md) | Known limits, permissions and cost, and fixes for common errors |

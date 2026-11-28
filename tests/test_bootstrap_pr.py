@@ -9,9 +9,9 @@ import shutil
 from pathlib import Path
 
 import pytest
-from gitutil import make_remote, sh
+from gitutil import bootstrap_script, make_remote, sh
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
+SCRIPT = bootstrap_script()
 WF = ".github/workflows/bites.yml"
 CLI_URL = "https://cli.github.com"
 VALUE_OPTIONS = {"-v", "--workflow-version", "-f", "--action-from", "-c", "--config"}
@@ -137,7 +137,7 @@ def test_a_protected_default_branch_gets_a_setup_branch_and_a_pull_request(tmp_p
     assert r.returncode == 3, r.stdout + r.stderr
     assert not has(bare, env, "main", WF)
     assert has(bare, env, "bites-setup/main", WF)
-    assert "PENDING" in r.stdout
+    assert "Pending" in r.stdout
     lines = log.read_text().splitlines()
     assert any(x.startswith("pr create") and "--head bites-setup/main" in x and "--base main" in x for x in lines)
 
@@ -147,7 +147,7 @@ def test_a_protected_branch_without_the_option_fails_and_names_the_option(tmp_pa
     protect(bare, "main")
     r = run(bare, env, "main")
     assert r.returncode == 1
-    assert "FAILED" in r.stdout and "--protected" in r.stdout
+    assert "Failed" in r.stdout and "--protected" in r.stdout
     assert setup_refs(bare, env) == []
 
 
@@ -183,7 +183,7 @@ def test_other_rejections_are_failures_and_never_become_pull_requests(tmp_path):
     protect(bare, "main", reason="permission denied")
     r = run(bare, env, "-p", "main")
     assert r.returncode == 1
-    assert "FAILED" in r.stdout
+    assert "Failed" in r.stdout
     assert setup_refs(bare, env) == []
 
 
@@ -303,7 +303,7 @@ def test_a_missing_gh_is_explained_with_install_instructions(tmp_path):
     protect(bare, "main")
     r = run(bare, env_without_gh(tmp_path, env), "-p", "main")
     assert r.returncode == 3, r.stdout + r.stderr
-    assert "GitHub CLI (gh) was not found" in r.stdout
+    assert "couldn't locate the GitHub CLI (gh)" in r.stdout
     assert CLI_URL in r.stdout and "brew install gh" in r.stdout
     assert "/compare/main...bites-setup/main" in r.stdout
 
@@ -314,11 +314,11 @@ def test_a_dry_run_writes_nothing_and_reports_whether_gh_is_installed(tmp_path):
     with_gh, _ = fake_gh(tmp_path, env, "echo 0", "gh0")
     r = run(bare, with_gh, "--dry-run", "-p", "main")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "cannot tell whether a branch is protected" in r.stdout
-    assert "was found" in r.stdout
+    assert "cannot determine if a branch is protected" in r.stdout
+    assert "I found the GitHub CLI (gh)" in r.stdout
     r = run(bare, env_without_gh(tmp_path, env), "--dry-run", "-p", "main")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "was not found" in r.stdout and CLI_URL in r.stdout
+    assert "couldn't find the GitHub CLI (gh)" in r.stdout and CLI_URL in r.stdout
     assert refs(bare, env) == before
 
 

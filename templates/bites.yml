@@ -1,27 +1,27 @@
 # .github/workflows/bites.yml
 #
-# TEMPLATE for the caller workflow. scripts/bootstrap.sh copies it into a project and fills
+# TEMPLATE for the workflow. scripts/bootstrap.sh copies it into a project and fills
 # in the two placeholders on the `uses:` lines below: the repository that holds the actions
 # (default imdebating/bites) and the version (default v1). Until then it is not a valid
 # workflow.
 #
-# Thin caller. All of the work is done by the shared actions; this file only decides WHEN
+# Thin wrapper: All of the work is done by the bites action; this file only decides WHEN
 # to run and WHAT the jobs may do. Do not edit the steps. To change the version, change the
 # ref after @ (a moving major tag such as v1, an exact tag, or a full commit SHA), or
 # re-run the bootstrap script with --workflow-version (-v).
 #
 # Optional settings go under `with:` next to `full`: max-chars, read-cap, include and
 # exclude (see the README). They override a bites.toml in the project. Give them to the
-# bootstrap script as --config KEY=VALUE (-c), so that running it again keeps them.
+# bootstrap script as -c/--config KEY=VALUE, so that running it again keeps them.
 #
 # Two jobs:
-#   bites    on every push (and by hand): mirror large files and apply patch files.
-#   cleanup  when a branch is deleted: delete that branch's bites/<branch> mirror.
+#   bites    on every push (and by hand): process large files and apply patch files.
+#   cleanup  when a branch is deleted: delete that branch's bites/<branch> output branch.
 #
-# Opt-in per branch: nothing is mirrored unless a branch named bites/<branch> exists.
+# Opt-in per branch: nothing is built unless a branch named bites/<branch> exists.
 # A push-triggered run uses the copy of this file in the pushed commit, so every branch that
 # should build needs its own copy. The bootstrap script adds it to each branch you name (or
-# to all of them with --all-branches), next to the bites/<branch> mirror. A branch created
+# to all of them with --all-branches), next to the bites/<branch> output branch. A branch created
 # later gets the file when it is created from a branch that has it; otherwise run the
 # bootstrap script again. A delete-triggered run always uses the copy on the DEFAULT branch,
 # so the cleanup job needs the file on the default branch only.
@@ -38,11 +38,11 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: Rebuild and re-split every large file instead of only changed ones
+        description: Reprocess and re-output every large file instead of only changed ones
         type: boolean
         default: false
 
-# Push to <branch> (applied patches), to bites/<branch> (parts) and delete bites/<branch>
+# Push to <branch> (applied patches), to bites/<branch> (bites) and delete bites/<branch>
 # (cleanup). Nothing else.
 permissions:
   contents: write
@@ -52,7 +52,7 @@ jobs:
     if: github.event_name != 'delete'
     runs-on: ubuntu-24.04
     # One run at a time per branch, queued rather than cancelled, so a rebuild is never
-    # interrupted half way through writing parts.
+    # interrupted half way through writing bites.
     concurrency:
       group: bites-${{ github.ref }}
       cancel-in-progress: false

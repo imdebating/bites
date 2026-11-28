@@ -12,7 +12,7 @@
 # bites.toml needs only the keys you want to change. An `include` or `exclude` list that
 # is given replaces the default list; it does not add to it.
 
-# Files with this many characters or fewer are NOT chunked (read them directly).
+# Files with this many characters or fewer are NOT processed (read them directly).
 # Longer files are cut into parts whose bodies are at most this long.
 # Units are Unicode code points, not bytes.
 max_chars     = 27000
@@ -57,7 +57,7 @@ exclude = [
   "**/node_modules/**",
 ]
 
-# Never chunked regardless of the lists above (hard-coded in bites_tool/core.py so a
+# Never processed, regardless of the lists above (hard-coded in bites_tool/core.py so a
 # config edit cannot expose secrets):  .env*   *.pem   *.key   id_rsa*
 
 # ---- Advanced settings: leave these alone unless you have measured a reason --------------

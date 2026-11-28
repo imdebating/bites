@@ -8,9 +8,9 @@ import shutil
 from pathlib import Path
 
 import pytest
-from gitutil import make_remote, sh
+from gitutil import bootstrap_script, make_remote, sh
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
+SCRIPT = bootstrap_script()
 pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
 )
@@ -48,7 +48,7 @@ def test_silent_when_action_and_tag_exist(tmp_path):
     action = make_action_repo(tmp_path, env)
     r = run(bare, env, "--action-url", str(action))
     assert r.returncode == 0, r.stderr
-    assert "cannot reach" not in r.stderr and "no tag or branch" not in r.stderr
+    assert "cannot be reached" not in r.stderr and "does not have a tag or branch" not in r.stderr
 
 
 def test_warns_but_continues_when_tag_is_missing(tmp_path):
@@ -57,7 +57,7 @@ def test_warns_but_continues_when_tag_is_missing(tmp_path):
     action = make_action_repo(tmp_path, env)
     r = run(bare, env, "--action-url", str(action), "--workflow-version", "v9")
     assert r.returncode == 0, r.stderr
-    assert "no tag or branch named 'v9'" in r.stderr
+    assert "does not have a tag or branch named 'v9'" in r.stderr
     wf = sh(["git", "show", "main:.github/workflows/bites.yml"], cwd=bare, env=env).stdout
     assert "imdebating/bites@v9" in wf
 
@@ -67,7 +67,7 @@ def test_warns_when_action_repository_is_unreachable(tmp_path):
     bare, env = make_remote(tmp_path)
     r = run(bare, env, "--action-url", str(tmp_path / "does-not-exist.git"))
     assert r.returncode == 0, r.stderr
-    assert "cannot reach" in r.stderr and "repository not found" in r.stderr
+    assert "cannot be reached" in r.stderr and "Repository not found" in r.stderr
 
 
 def test_commit_sha_ref_only_checks_reachability(tmp_path):
@@ -76,7 +76,7 @@ def test_commit_sha_ref_only_checks_reachability(tmp_path):
     action = make_action_repo(tmp_path, env)
     r = run(bare, env, "--action-url", str(action), "--workflow-version", FAKE_SHA)
     assert r.returncode == 0, r.stderr
-    assert "no tag or branch" not in r.stderr and "cannot reach" not in r.stderr
+    assert "does not have a tag or branch" not in r.stderr and "cannot be reached" not in r.stderr
 
 
 def test_no_preflight_flag_skips_the_check(tmp_path):
@@ -84,7 +84,7 @@ def test_no_preflight_flag_skips_the_check(tmp_path):
     bare, env = make_remote(tmp_path)
     r = run(bare, env, "--action-url", str(tmp_path / "does-not-exist.git"), "--no-preflight")
     assert r.returncode == 0, r.stderr
-    assert "cannot reach" not in r.stderr
+    assert "cannot be reached" not in r.stderr
 
 
 def test_url_alone_skips_the_check(tmp_path):
@@ -96,7 +96,7 @@ def test_url_alone_skips_the_check(tmp_path):
         check=False,
     )
     assert r.returncode == 0, r.stderr
-    assert "cannot reach" not in r.stderr
+    assert "cannot be reached" not in r.stderr
 
 
 def test_rendered_workflow_header_has_no_leftover_text(tmp_path):

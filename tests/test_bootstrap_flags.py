@@ -6,14 +6,14 @@ import sys
 from pathlib import Path
 
 import pytest
-from gitutil import make_remote, sh
+from gitutil import bootstrap_script, make_remote, sh
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import bites_tool  # noqa: E402
 
-SCRIPT = ROOT / "scripts" / "bootstrap.sh"
+SCRIPT = bootstrap_script()
 WF = ".github/workflows/bites.yml"
 VALUE_OPTIONS = {"-v", "--workflow-version", "-f", "--action-from", "-c", "--config"}
 pytestmark = pytest.mark.skipif(
@@ -108,7 +108,7 @@ def test_an_old_option_name_stops_with_a_pointer_to_the_new_one(tmp_path, old, a
 def test_an_unknown_option_is_rejected(tmp_path):
     bare, env = make_remote(tmp_path)
     r = run(bare, env, "-x", "main")
-    assert r.returncode == 1 and "unknown option: -x" in r.stderr
+    assert r.returncode == 1 and "Unknown option: -x" in r.stderr
 
 
 # ---- short forms --------------------------------------------------------------------------------
