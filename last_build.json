@@ -1,0 +1,17 @@
+{
+  "changed": {
+    "locales/strings.en.toml": {
+      "chars_after": 41128,
+      "chars_before": 0,
+      "parts_after": 2,
+      "parts_before": 0
+    }
+  },
+  "patches": [],
+  "removed": [],
+  "schema": 1,
+  "source_branch": "main",
+  "source_commit": "ad9bb62e91c233aafa140fb9746f81de367bdf07",
+  "status": "ok",
+  "unchanged_bite": 0
+}

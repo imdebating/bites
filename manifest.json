@@ -1,0 +1,20 @@
+{
+  "files": {
+    "locales/strings.en.toml": {
+      "blob_sha": "ec0c93d0015d6002a6e39751f65e3dbe97ac4d1d",
+      "bytes": 41128,
+      "chars": 41128,
+      "parts": 2,
+      "sha256": "2b4ac633fa26689d12e7bf437a7d3d4907dc2bf3cc501a7667cc454d53c06b60",
+      "start_lines": [
+        1,
+        411
+      ]
+    }
+  },
+  "max_chars": 27000,
+  "schema": 1,
+  "skipped": {},
+  "source_branch": "main",
+  "source_commit": "ad9bb62e91c233aafa140fb9746f81de367bdf07"
+}
